@@ -7,7 +7,8 @@ from app.api import (
     search_router,
     approval_router,
     operation_router,
-    graph_router
+    graph_router,
+    auth_router
 )
 
 app = FastAPI(
@@ -26,6 +27,7 @@ app.add_middleware(
 )
 
 # 注册路由
+app.include_router(auth_router, prefix="/api/v1")
 app.include_router(case_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
 app.include_router(approval_router, prefix="/api/v1")

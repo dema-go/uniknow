@@ -1,7 +1,9 @@
 from typing import Optional, List
+from motor.motor_asyncio import AsyncIOMotorClient
 from app.core.config import settings
 from app.models.database import CaseStatus
 from app.tools.embedding import EmbeddingService
+import re
 
 
 class SearchService:
@@ -9,6 +11,9 @@ class SearchService:
 
     def __init__(self):
         self.embedding_service = EmbeddingService()
+        self.client = AsyncIOMotorClient(settings.MONGODB_URI)
+        self.db = self.client[settings.DATABASE_NAME]
+        self.collection = self.db["cases"]
 
     async def search_cases(
         self,
@@ -24,8 +29,12 @@ class SearchService:
         搜索案例
         使用向量搜索 + 关键词搜索的混合搜索策略
         """
-        # 1. 生成查询向量
-        query_vector = await self.embedding_service.embed_query(query)
+        # 1. 尝试生成查询向量（可选，用于未来的向量搜索）
+        try:
+            query_vector = await self.embedding_service.embed_query(query)
+        except Exception as e:
+            # embedding 服务失败时，只使用关键词搜索
+            query_vector = None
 
         # 2. 构建查询条件
         filter_conditions = {
@@ -39,8 +48,7 @@ class SearchService:
         if tags:
             filter_conditions["tags"] = {"$all": tags}
 
-        # 3. 执行向量搜索（这里简化为关键词搜索）
-        # TODO: 集成实际的向量数据库（如 Milvus、Pinecone）
+        # 3. 执行关键词搜索
         results = await self._keyword_search(
             query, filter_conditions, page, page_size
         )
@@ -54,13 +62,36 @@ class SearchService:
         page: int,
         page_size: int
     ) -> dict:
-        """关键词搜索（临时实现）"""
-        # TODO: 实现实际的搜索逻辑
+        """关键词搜索实现"""
+        # 构建搜索查询 - 在标题和内容中搜索关键词
+        search_query = {
+            **filters,
+            "$or": [
+                {"title": {"$regex": query, "$options": "i"}},
+                {"content": {"$regex": query, "$options": "i"}}
+            ]
+        }
+
+        # 如果查询词为空，移除 $or 条件
+        if not query or query.strip() == "":
+            search_query = filters
+
+        total = await self.collection.count_documents(search_query)
+        skip = (page - 1) * page_size
+
+        cursor = self.collection.find(search_query).skip(skip).limit(page_size).sort("created_at", -1)
+
+        items = []
+        async for doc in cursor:
+            doc["id"] = str(doc.pop("_id"))
+            items.append(doc)
+
         return {
-            "items": [],
-            "total": 0,
+            "items": items,
+            "total": total,
             "page": page,
-            "page_size": page_size
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size if total > 0 else 0
         }
 
     async def user_search(

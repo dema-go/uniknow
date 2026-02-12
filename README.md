@@ -9,6 +9,15 @@ UniKnow 是公司内部客服使用的知识库 SaaS 服务，支持案例管理
 - 案例审批流程
 - 案例模板支持
 - 对内/对外案例区分
+- Markdown 编辑器（支持富文本切换）
+- 代码高亮和预览
+
+### 权限管理
+- JWT 认证
+- 基于角色的访问控制 (RBAC)
+  - 管理员 (admin): 直接发布案例，无需审批
+  - 维护员 (agent): 创建案例需要审批
+  - 普通用户 (user): 只读访问
 
 ### 案例使用
 - 坐席搜索
@@ -27,6 +36,8 @@ UniKnow 是公司内部客服使用的知识库 SaaS 服务，支持案例管理
 - Pinia 状态管理
 - Vue Router
 - Element Plus
+- md-editor-v3 (Markdown 编辑器)
+- marked (Markdown 渲染)
 
 ### 后端
 - FastAPI
@@ -34,6 +45,8 @@ UniKnow 是公司内部客服使用的知识库 SaaS 服务，支持案例管理
 - MongoDB
 - Redis
 - 阿里云 DashScope (通义千问 + Embedding)
+- JWT 认证 (python-jose)
+- MongoDB 异步驱动 (Motor)
 
 ## 项目结构
 
@@ -111,6 +124,14 @@ npm run dev
 
 前端服务将在 http://localhost:3000 启动
 
+### 测试账号
+
+| 角色 | 用户名 | 密码 | 权限 |
+|------|--------|------|------|
+| 管理员 | admin | admin123 | 直接发布案例，无需审批 |
+| 维护员 | agent | agent123 | 创建案例需要审批 |
+| 普通用户 | user | user123 | 只读访问 |
+
 ### Docker 部署
 
 ```bash
@@ -126,6 +147,10 @@ docker-compose logs -f
 - API 文档: http://localhost:8000/docs
 
 ## API 文档
+
+### 认证
+- `POST /api/v1/auth/login` - 用户登录
+- `POST /api/v1/auth/logout` - 用户登出
 
 ### 案例管理
 - `POST /api/v1/cases` - 创建案例

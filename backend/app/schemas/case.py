@@ -7,12 +7,13 @@ from app.models.database import CaseType, CaseStatus
 
 class CaseCreate(BaseModel):
     """创建案例请求"""
-    title: str = Field(..., min_length=1, max_length=200)
+    title: str = Field(..., min_length=2, max_length=200)
     content: str = Field(..., min_length=1)
     category_id: str
     case_type: CaseType = CaseType.EXTERNAL
     tags: List[str] = []
     template_id: Optional[str] = None
+    status: Optional[CaseStatus] = None
 
 
 class CaseUpdate(BaseModel):

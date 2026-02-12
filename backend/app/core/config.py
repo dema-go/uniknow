@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     OPENAI_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     EMBEDDING_MODEL: str = "text-embedding-v2"
 
+    # JWT配置
+    SECRET_KEY: str = Field(default="your-secret-key-change-in-production", description="JWT密钥")
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7天
+
     model_config = SettingsConfigDict(
         env_file="/Users/liuziying/uniknow/backend/.env",
         env_file_encoding="utf-8",

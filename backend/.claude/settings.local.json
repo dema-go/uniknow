@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv sync:*)",
+      "Bash(.venv/bin/pip install:*)",
+      "Bash(npm install)",
+      "Bash(source:*)",
+      "Bash(uvicorn:*)",
+      "Bash(npm run dev)",
+      "Bash(lsof:*)",
+      "Bash(kill:*)",
+      "Bash(curl:*)"
+    ]
+  }
+}

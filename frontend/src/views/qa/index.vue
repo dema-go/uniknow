@@ -25,12 +25,17 @@
               <div class="avatar-col" v-if="msg.role === 'assistant'">
                 <el-avatar :size="40" class="assistant-avatar" icon="Cpu" />
               </div>
-              
+
               <div class="content-col">
                 <div class="bubble-content">
                   <div class="text" v-html="formatMessage(msg.content)"></div>
+                  <!-- 思考状态指示器 -->
+                  <div v-if="msg.thinking" class="thinking-indicator">
+                    <el-icon class="is-loading"><Loading /></el-icon>
+                    <span>{{ msg.thinking }}</span>
+                  </div>
                 </div>
-                
+
                 <div class="sources-panel" v-if="msg.sources && msg.sources.length">
                   <div class="sources-header"><el-icon><Link /></el-icon> 参考来源</div>
                   <div class="source-tags">
@@ -52,22 +57,6 @@
               </div>
             </div>
           </div>
-
-          <!-- Loading Indicator -->
-          <div v-if="loading" class="message-wrapper assistant">
-            <div class="message-bubble">
-               <div class="avatar-col">
-                <el-avatar :size="40" class="assistant-avatar" icon="Cpu" />
-              </div>
-              <div class="content-col">
-                <div class="bubble-content loading-bubble">
-                  <div class="typing-indicator">
-                    <span></span><span></span><span></span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
         <!-- Input Area -->
@@ -81,6 +70,7 @@
               resize="none"
               class="chat-input"
               @keydown.enter.prevent="handleAsk"
+              :disabled="loading"
             />
             <div class="input-actions">
               <div class="hint">Shift + Enter 换行</div>
@@ -99,9 +89,9 @@
             <div class="card-title"><el-icon><Lightning /></el-icon> 常见问题</div>
           </template>
           <div class="quick-tags">
-            <div 
-              v-for="q in quickQuestions" 
-              :key="q" 
+            <div
+              v-for="q in quickQuestions"
+              :key="q"
               class="quick-tag"
               @click="question = q"
             >
@@ -133,9 +123,10 @@
 <script setup>
 import { ref, nextTick, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { qaApi } from '@/services/case'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
+const userStore = useUserStore()
 const chatContainer = ref(null)
 const question = ref('')
 const loading = ref(false)
@@ -162,7 +153,7 @@ const formatMessage = (content) => {
 const handleAsk = async (e) => {
   // Allow Shift+Enter for new line
   if (e && e.shiftKey) return
-  
+
   if (!question.value.trim() || loading.value) return
 
   messages.value.push({
@@ -173,29 +164,76 @@ const handleAsk = async (e) => {
   const userQuestion = question.value
   question.value = ''
   loading.value = true
-  
+
+  // 添加一个空的助手消息用于流式更新
+  const assistantMessageIndex = messages.value.length
+  messages.value.push({
+    role: 'assistant',
+    content: '',
+    thinking: '正在思考...',
+    sources: []
+  })
+
   scrollToBottom()
 
   try {
-    const res = await qaApi.ask(userQuestion)
-    // 检查响应是否成功
-    if (res.code !== undefined && res.code !== 200) {
-      throw new Error(res.message || '请求失败')
-    }
-    const data = res.data || res
-
-    messages.value.push({
-      role: 'assistant',
-      content: data.answer || '抱歉，没有生成有效答案。',
-      sources: data.sources || []
+    const response = await fetch('/api/v1/graph/ask', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${userStore.token}`
+      },
+      body: JSON.stringify({ question: userQuestion })
     })
+
+    if (!response.ok) {
+      throw new Error('网络请求失败')
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() // 保留未完成的行
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6)
+          try {
+            const parsed = JSON.parse(data)
+
+            // 处理不同类型的事件
+            if (parsed.message === '开始处理问题') {
+              messages.value[assistantMessageIndex].thinking = '正在分析问题...'
+            } else if (parsed.text) {
+              // 内容更新
+              messages.value[assistantMessageIndex].content += parsed.text
+              messages.value[assistantMessageIndex].thinking = null
+              scrollToBottom()
+            } else if (parsed.sources) {
+              // 来源信息
+              messages.value[assistantMessageIndex].sources = parsed.sources
+              scrollToBottom()
+            } else if (parsed.message === 'done' || Object.keys(parsed).length === 0) {
+              // 完成
+              messages.value[assistantMessageIndex].thinking = null
+            }
+          } catch (err) {
+            console.error('Parse error:', err)
+          }
+        }
+      }
+    }
   } catch (err) {
     console.error('Q&A Error:', err)
-    messages.value.push({
-      role: 'assistant',
-      content: `很抱歉，服务出现问题：${err.message || '未知错误'}。请稍后再试或联系人工客服。`,
-      sources: []
-    })
+    messages.value[assistantMessageIndex].content = `很抱歉，服务出现问题：${err.message || '未知错误'}。请稍后再试或联系人工客服。`
+    messages.value[assistantMessageIndex].thinking = null
   } finally {
     loading.value = false
     scrollToBottom()
@@ -221,8 +259,8 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .qa-page-modern {
-  height: calc(100vh - 100px); // Adjust based on layout
-  margin: -24px; // Break out of main padding
+  height: calc(100vh - 100px);
+  margin: -24px;
   display: flex;
 }
 
@@ -244,13 +282,13 @@ onMounted(() => {
   padding: 16px 24px;
   background: white;
   border-bottom: 1px solid #f3f4f6;
-  
+
   .header-info {
     display: flex;
     align-items: center;
     gap: 12px;
   }
-  
+
   .ai-avatar {
     width: 48px;
     height: 48px;
@@ -262,7 +300,7 @@ onMounted(() => {
     font-size: 24px;
     color: white;
   }
-  
+
   .ai-meta {
     h3 { font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 4px; }
     p { font-size: 13px; color: #6b7280; margin: 0; }
@@ -281,11 +319,11 @@ onMounted(() => {
 /* Message Bubbles */
 .message-wrapper {
   display: flex;
-  
+
   &.user {
     justify-content: flex-end;
   }
-  
+
   &.assistant {
     justify-content: flex-start;
   }
@@ -295,11 +333,11 @@ onMounted(() => {
   display: flex;
   gap: 16px;
   max-width: 80%;
-  
+
   .avatar-col {
     flex-shrink: 0;
   }
-  
+
   .content-col {
     display: flex;
     flex-direction: column;
@@ -329,11 +367,25 @@ onMounted(() => {
     color: white;
     border-bottom-right-radius: 4px;
   }
-  
+
   .message-wrapper.assistant & {
     background: white;
     color: #374151;
     border-top-left-radius: 4px;
+  }
+}
+
+/* Thinking Indicator */
+.thinking-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #8b5cf6;
+  font-size: 13px;
+  margin-top: 8px;
+
+  .el-icon {
+    font-size: 16px;
   }
 }
 
@@ -344,7 +396,7 @@ onMounted(() => {
   background: rgba(255,255,255,0.6);
   border-radius: 8px;
   border: 1px solid #e5e7eb;
-  
+
   .sources-header {
     font-size: 12px;
     color: #6b7280;
@@ -353,49 +405,23 @@ onMounted(() => {
     align-items: center;
     gap: 4px;
   }
-  
+
   .source-tags {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    
+
     .source-tag {
       cursor: pointer;
       transition: all 0.2s;
       background: white;
-      
+
       &:hover {
         border-color: #8b5cf6;
         color: #8b5cf6;
       }
     }
   }
-}
-
-/* Loading Animation */
-.loading-bubble {
-  padding: 12px 20px;
-  display: flex;
-  align-items: center;
-  min-height: 50px;
-}
-
-.typing-indicator span {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  background-color: #9ca3af;
-  border-radius: 50%;
-  margin: 0 2px;
-  animation: typing 1.4s infinite ease-in-out both;
-
-  &:nth-child(1) { animation-delay: -0.32s; }
-  &:nth-child(2) { animation-delay: -0.16s; }
-}
-
-@keyframes typing {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
 }
 
 /* Input Area */
@@ -412,12 +438,12 @@ onMounted(() => {
   padding: 8px;
   background: white;
   transition: all 0.3s;
-  
+
   &:focus-within {
     border-color: #8b5cf6;
     box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
   }
-  
+
   .chat-input {
     :deep(.el-textarea__inner) {
       box-shadow: none;
@@ -426,25 +452,25 @@ onMounted(() => {
       padding: 12px;
     }
   }
-  
+
   .input-actions {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 0 12px 8px;
-    
+
     .hint {
       font-size: 12px;
       color: #9ca3af;
     }
-    
+
     .send-btn {
       width: 40px;
       height: 40px;
       font-size: 18px;
       background:linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
       border: none;
-      
+
       &:hover {
         transform: scale(1.05);
       }
@@ -466,7 +492,7 @@ onMounted(() => {
   border: none;
   background: #f9fafb;
   border-radius: 12px;
-  
+
   .card-title {
     font-size: 14px;
     font-weight: 600;
@@ -475,7 +501,7 @@ onMounted(() => {
     align-items: center;
     gap: 8px;
   }
-  
+
   :deep(.el-card__header) {
     padding: 16px;
     border-bottom: 1px solid rgba(0,0,0,0.03);
@@ -486,7 +512,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  
+
   .quick-tag {
     padding: 10px 14px;
     background: white;
@@ -496,7 +522,7 @@ onMounted(() => {
     cursor: pointer;
     transition: all 0.2s;
     border: 1px solid transparent;
-    
+
     &:hover {
       border-color: #ddd6fe;
       color: #7c3aed;
@@ -513,9 +539,9 @@ onMounted(() => {
     align-items: center;
     padding: 8px 0;
     border-bottom: 1px dashed #e5e7eb;
-    
+
     &:last-child { border-bottom: none; }
-    
+
     .label { font-size: 13px; color: #6b7280; }
     .value { font-weight: 600; color: #111827; }
     .value.high { color: #10b981; }

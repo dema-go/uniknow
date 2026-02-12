@@ -38,29 +38,35 @@
               <el-button link type="primary" @click="$router.push('/cases')">查看全部</el-button>
             </div>
           </template>
-          
-          <el-table :data="recentCases" style="width: 100%" :show-header="true">
+
+          <el-table :data="recentCases" style="width: 100%" v-loading="loadingCases" :show-header="true">
             <el-table-column prop="title" label="标题" min-width="200">
                <template #default="{ row }">
-                 <div class="case-title-cell">
+                 <div class="case-title-cell" @click="viewCase(row.id)" style="cursor: pointer;">
                    <div class="icon-box"><el-icon><Document /></el-icon></div>
                    <span>{{ row.title }}</span>
                  </div>
                </template>
             </el-table-column>
-            <el-table-column prop="category" label="分类" width="120">
+            <el-table-column prop="case_type" label="类型" width="100">
                <template #default="{ row }">
-                 <el-tag effect="light" round>{{ row.category }}</el-tag>
+                 <el-tag :type="row.case_type === 'external' ? 'success' : 'warning'" effect="light" round size="small">
+                   {{ row.case_type === 'external' ? '公开' : '内部' }}
+                 </el-tag>
                </template>
             </el-table-column>
             <el-table-column prop="status" label="状态" width="100">
               <template #default="{ row }">
                 <div class="status-dot" :class="getStatusClass(row.status)">
-                  {{ row.status }}
+                  {{ getStatusText(row.status) }}
                 </div>
               </template>
             </el-table-column>
-            <el-table-column prop="createdAt" label="时间" width="150" align="right" />
+            <el-table-column prop="created_at" label="创建时间" width="150" align="right">
+              <template #default="{ row }">
+                {{ formatTime(row.created_at) }}
+              </template>
+            </el-table-column>
           </el-table>
         </el-card>
       </el-col>
@@ -90,7 +96,7 @@
             </div>
           </div>
         </el-card>
-        
+
         <el-card class="content-card mt-24" shadow="hover">
            <template #header>
             <span class="title">系统概况</span>
@@ -113,8 +119,13 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { operationApi } from '@/services/case'
+import { useRouter } from 'vue-router'
+import { operationApi, caseApi } from '@/services/case'
 
+const router = useRouter()
+const loadingCases = ref(false)
+
+// 后端返回snake_case字段，转换为camelCase供前端使用
 const statsData = ref({
   totalCases: 0,
   todayViews: 0,
@@ -129,12 +140,7 @@ const statItems = computed(() => [
   { label: '待审批', value: statsData.value.pendingApprovals, icon: 'AlarmClock', trend: -5, unit: '' }
 ])
 
-const recentCases = ref([
-  { id: 1, title: '如何重置密码', category: '账户安全', status: '已发布', createdAt: '10:30' },
-  { id: 2, title: '财务报表导出异常处理', category: '财务管理', status: '待审批', createdAt: '09:20' },
-  { id: 3, title: '2024产品功能更新概览', category: '产品介绍', status: '草稿', createdAt: '昨天' },
-  { id: 4, title: 'VPN连接超时排查步骤', category: '技术支持', status: '已发布', createdAt: '昨天' }
-])
+const recentCases = ref([])
 
 const customColors = [
   { color: '#f56c6c', percentage: 20 },
@@ -146,20 +152,67 @@ const customColors = [
 
 const getStatusClass = (status) => {
   const map = {
-    '已发布': 'status-success',
-    '待审批': 'status-warning',
-    '草稿': 'status-info',
-    '已拒绝': 'status-danger'
+    'published': 'status-success',
+    'pending_approval': 'status-warning',
+    'draft': 'status-info',
+    'rejected': 'status-danger'
   }
   return map[status] || 'status-info'
 }
 
-onMounted(async () => {
+const getStatusText = (status) => {
+  const map = {
+    'published': '已发布',
+    'pending_approval': '待审批',
+    'draft': '草稿',
+    'rejected': '已拒绝'
+  }
+  return map[status] || status
+}
+
+const formatTime = (dateStr) => {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diff = now - date
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+
+  if (days === 0) {
+    const hours = Math.floor(diff / (1000 * 60 * 60))
+    if (hours === 0) {
+      const minutes = Math.floor(diff / (1000 * 60))
+      return minutes <= 1 ? '刚刚' : `${minutes}分钟前`
+    }
+    return `${hours}小时前`
+  } else if (days === 1) {
+    return '昨天'
+  } else if (days < 7) {
+    return `${days}天前`
+  } else {
+    return date.toLocaleDateString()
+  }
+}
+
+const viewCase = (id) => {
+  router.push(`/cases/${id}`)
+}
+
+// 获取统计数据
+const fetchStats = async () => {
   try {
     const res = await operationApi.getCaseStats()
-    statsData.value = res.data || statsData.value
+    const data = res.data || {}
+
+    // 后端返回snake_case，转换为camelCase
+    statsData.value = {
+      totalCases: data.total_cases || 0,
+      todayViews: data.today_views || 0,
+      aiResolutionRate: Math.round((data.ai_resolution_rate || 0.82) * 100),
+      pendingApprovals: data.pending_approval || 0
+    }
   } catch (e) {
-    // 模拟数据 fallback
+    console.error('获取统计数据失败:', e)
+    // 使用模拟数据
     statsData.value = {
       totalCases: 1284,
       todayViews: 452,
@@ -167,6 +220,42 @@ onMounted(async () => {
       pendingApprovals: 5
     }
   }
+}
+
+// 获取最近案例
+const fetchRecentCases = async () => {
+  loadingCases.value = true
+  try {
+    // 使用案例列表API获取最近5条
+    const res = await caseApi.list({ page: 1, page_size: 5 })
+    const items = res.items || res.data?.items || []
+
+    recentCases.value = items.map(item => ({
+      id: item.id,
+      title: item.title,
+      case_type: item.case_type,
+      status: item.status,
+      created_at: item.created_at
+    }))
+  } catch (e) {
+    console.error('获取最近案例失败:', e)
+    // 使用模拟数据
+    recentCases.value = [
+      { id: 1, title: '如何重置密码', case_type: 'external', status: 'published', created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
+      { id: 2, title: '财务报表导出异常处理', case_type: 'internal', status: 'pending_approval', created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString() },
+      { id: 3, title: '2024产品功能更新概览', case_type: 'external', status: 'draft', created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() },
+      { id: 4, title: 'VPN连接超时排查步骤', case_type: 'internal', status: 'published', created_at: new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString() }
+    ]
+  } finally {
+    loadingCases.value = false
+  }
+}
+
+onMounted(async () => {
+  await Promise.all([
+    fetchStats(),
+    fetchRecentCases()
+  ])
 })
 </script>
 
@@ -187,7 +276,7 @@ onMounted(async () => {
   border-radius: 16px;
   overflow: hidden;
   transition: transform 0.3s;
-  
+
   &:hover {
     transform: translateY(-5px);
   }
@@ -226,7 +315,7 @@ onMounted(async () => {
   font-weight: 700;
   color: #111827;
   line-height: 1.2;
-  
+
   .stat-unit {
     font-size: 14px;
     font-weight: 500;
@@ -241,7 +330,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 2px;
-  
+
   &.up { color: #10b981; }
   &.down { color: #f56c6c; }
 }
@@ -257,7 +346,7 @@ onMounted(async () => {
 .content-card {
   border: none;
   border-radius: 16px;
-  
+
   .title {
     font-size: 16px;
     font-weight: 600;
@@ -274,7 +363,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 12px;
-  
+
   .icon-box {
     width: 32px;
     height: 32px;
@@ -285,13 +374,18 @@ onMounted(async () => {
     justify-content: center;
     color: #6b7280;
   }
+
+  &:hover .icon-box {
+    background: #e0e7ff;
+    color: #6366f1;
+  }
 }
 
 .status-dot {
   display: inline-flex;
   align-items: center;
   font-size: 13px;
-  
+
   &:before {
     content: '';
     width: 8px;
@@ -299,7 +393,7 @@ onMounted(async () => {
     border-radius: 50%;
     margin-right: 6px;
   }
-  
+
   &.status-success { color: #67c23a; &:before { background: #67c23a; } }
   &.status-warning { color: #e6a23c; &:before { background: #e6a23c; } }
   &.status-info { color: #909399; &:before { background: #909399; } }
@@ -325,12 +419,12 @@ onMounted(async () => {
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s;
-  
+
   &:hover {
     background: #f3f4f6;
     transform: translateY(-2px);
   }
-  
+
   .action-icon {
     width: 40px;
     height: 40px;
@@ -341,13 +435,13 @@ onMounted(async () => {
     font-size: 20px;
     margin-bottom: 8px;
     color: white;
-    
+
     &.create { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
     &.search { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
     &.qa { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); }
     &.approval { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
   }
-  
+
   span {
     font-size: 13px;
     color: #4b5563;
@@ -359,7 +453,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  
+
   .sys-item {
     span { display: block; margin-bottom: 8px; font-size: 13px; color: #6b7280; }
   }

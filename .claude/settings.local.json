@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(test:*)",
+      "Bash(source .venv/bin/activate)",
+      "Bash(uvicorn:*)",
+      "Bash(npm run dev)",
+      "Bash(uv sync:*)",
+      "Bash(pip install:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(pip show:*)",
+      "Bash(curl:*)",
+      "Bash(python test_embedding.py:*)",
+      "Bash(/Users/liuziying/uniknow/backend/.env.example << 'EOF'\n# 数据库配置\nMONGODB_URI=mongodb://localhost:27017\nREDIS_URL=redis://localhost:6379\n\n# 阿里云 DashScope 配置\nOPENAI_API_KEY=sk-your-api-key-here\nOPENAI_MODEL=qwen-plus\nOPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1\nEMBEDDING_MODEL=text-embedding-v2\n\n# 应用配置\nAPP_HOST=0.0.0.0\nAPP_PORT=8000\nDEBUG=true\nEOF)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfix: 修复搜索和问答接口，配置阿里云DashScope\n\n修复内容：\n- 修复前端无限刷新问题（移除layout中transition组件）\n- 添加智能问答API路由 \\(/api/v1/graph/ask\\)\n- 修复GraphRag工作流状态管理（BaseModel -> TypedDict）\n- 修复embedding服务使用AsyncOpenAI调用阿里云DashScope\n- 改进前端问答页面错误处理\n\n配置更新：\n- 更新embedding服务使用阿里云DashScope OpenAI兼容模式\n- 更新API模型配置为qwen-plus和text-embedding-v2\n- 添加.env.example模板文件\n\n文档更新：\n- 更新README.md说明使用阿里云DashScope\n- 添加CHANGELOG.md记录变更\nEOF\n\\)\")",
+      "Bash(git config:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}

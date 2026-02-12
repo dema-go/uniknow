@@ -9,7 +9,7 @@
         <el-form-item prop="username">
           <el-input
             v-model="form.username"
-            placeholder="用户名"
+            placeholder="用户名 (admin/admin123)"
             prefix-icon="User"
             size="large"
           />
@@ -36,25 +36,30 @@
           </el-button>
         </el-form-item>
       </el-form>
+      <div class="login-tips">
+        <p>测试账号：</p>
+        <p>管理员: admin / admin123 (无需审批)</p>
+        <p>维护员: agent / agent123 (需要审批)</p>
+        <p>普通用户: user / user123 (只读)</p>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive } from 'vue'
-import { useUserStore } from '@/stores/user'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import request from '@/services/api'
 
 const router = useRouter()
-const userStore = useUserStore()
 
 const formRef = ref(null)
 const loading = ref(false)
 
 const form = reactive({
-  username: '',
-  password: ''
+  username: 'admin',
+  password: 'admin123'
 })
 
 const rules = {
@@ -66,12 +71,19 @@ const handleLogin = async () => {
   await formRef.value.validate()
   loading.value = true
   try {
-    // TODO: 调用实际登录接口
-    userStore.setToken('mock_token')
+    const res = await request.post('/auth/login', {
+      username: form.username,
+      password: form.password
+    })
+
+    // 保存token和用户信息
+    localStorage.setItem('token', res.data.access_token)
+    localStorage.setItem('userInfo', JSON.stringify(res.data.user_info))
+
     ElMessage.success('登录成功')
     router.push('/')
   } catch (error) {
-    ElMessage.error('登录失败')
+    ElMessage.error(error.response?.data?.detail || '登录失败')
   } finally {
     loading.value = false
   }
@@ -101,12 +113,25 @@ const handleLogin = async () => {
 
   h1 {
     font-size: 32px;
-    color: $primary-color;
+    color: #667eea;
     margin-bottom: 10px;
   }
 
   p {
-    color: $text-secondary;
+    color: #6b7280;
+  }
+}
+
+.login-tips {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #6b7280;
+
+  p {
+    margin: 4px 0;
   }
 }
 </style>
