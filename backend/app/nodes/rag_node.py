@@ -14,12 +14,12 @@ async def generate_answer(state: GraphState) -> GraphState:
     # 构造上下文
     docs_context = "\n\n".join([
         f"【文档{i+1}】{doc.get('content', '')}"
-        for i, doc in enumerate(state.retrieved_docs[:3])
+        for i, doc in enumerate(state["retrieved_docs"][:3])
     ])
 
     graph_context = ""
-    if state.graph_entities:
-        entities = [e.get("name", "") for e in state.graph_entities]
+    if state["graph_entities"]:
+        entities = [e.get("name", "") for e in state["graph_entities"]]
         graph_context = f"\n相关实体: {', '.join(entities)}"
 
     # 构建提示词
@@ -33,10 +33,11 @@ async def generate_answer(state: GraphState) -> GraphState:
 4. 适当使用列表和编号提高可读性
 """
 
-    user_prompt = f"""用户问题：{state.question}
+    user_prompt = f"""用户问题：{state["question"]}
 
 参考文档：
 {docs_context}
+
 {graph_context}
 
 请根据以上信息回答用户问题："""
@@ -54,23 +55,23 @@ async def generate_answer(state: GraphState) -> GraphState:
 
     answer = response.choices[0].message.content
 
-    # 构建来源
+    # 构造来源
     sources = [
         {
             "id": doc.get("id"),
             "title": doc.get("title"),
             "relevance": 0.9 - i * 0.1
         }
-        for i, doc in enumerate(state.retrieved_docs[:3])
+        for i, doc in enumerate(state["retrieved_docs"][:3])
     ]
 
-    return GraphState(
-        **state.model_dump(),
-        answer=answer,
-        sources=sources,
-        confidence=0.85,
-        step="generate"
-    )
+    return {
+        **state,
+        "answer": answer,
+        "sources": sources,
+        "confidence": 0.85,
+        "step": "generate"
+    }
 
 
 async def evaluate_answer(state: GraphState) -> GraphState:
@@ -78,19 +79,19 @@ async def evaluate_answer(state: GraphState) -> GraphState:
     # TODO: 实现回答质量评估逻辑
     # 可以使用 LLM 评估回答的相关性、准确性、完整性
 
-    return GraphState(
-        **state.model_dump(),
-        confidence=0.9,
-        step="evaluate"
-    )
+    return {
+        **state,
+        "confidence": 0.9,
+        "step": "evaluate"
+    }
 
 
 async def reformulate_query(state: GraphState) -> GraphState:
     """重构查询"""
     # TODO: 使用 LLM 重构查询，使其更适合检索
 
-    return GraphState(
-        **state.model_dump(),
-        reformulated_query=state.question,
-        step="reformulate"
-    )
+    return {
+        **state,
+        "reformulated_query": state["question"],
+        "step": "reformulate"
+    }

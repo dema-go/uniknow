@@ -28,7 +28,8 @@ request.interceptors.request.use(
 request.interceptors.response.use(
   (response) => {
     const res = response.data
-    if (res.code === 200) {
+    // 如果没有 code 字段，或者是二进制流，或者 code 为 200，则视为成功
+    if (res.code === undefined || res.code === 200) {
       return res
     } else {
       ElMessage.error(res.message || '请求失败')

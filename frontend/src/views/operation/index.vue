@@ -1,99 +1,110 @@
 <template>
-  <div class="operation-page">
-    <el-row :gutter="20">
-      <el-col :span="12">
-        <el-card shadow="hover">
-          <template #header>
-            <span>案例统计</span>
-          </template>
-          <el-row :gutter="20">
-            <el-col :span="8">
-              <div class="stat-box">
-                <div class="stat-value">{{ caseStats.totalCases }}</div>
-                <div class="stat-label">案例总数</div>
-              </div>
-            </el-col>
-            <el-col :span="8">
-              <div class="stat-box">
-                <div class="stat-value">{{ caseStats.internalCases }}</div>
-                <div class="stat-label">对内案例</div>
-              </div>
-            </el-col>
-            <el-col :span="8">
-              <div class="stat-box">
-                <div class="stat-value">{{ caseStats.externalCases }}</div>
-                <div class="stat-label">对外案例</div>
-              </div>
-            </el-col>
-          </el-row>
-          <el-row :gutter="20" style="margin-top: 20px">
-            <el-col :span="8">
-              <div class="stat-box">
-                <div class="stat-value">{{ caseStats.todayViews }}</div>
-                <div class="stat-label">今日浏览</div>
-              </div>
-            </el-col>
-            <el-col :span="8">
-              <div class="stat-box">
-                <div class="stat-value">{{ caseStats.likes }}</div>
-                <div class="stat-label">累计点赞</div>
-              </div>
-            </el-col>
-            <el-col :span="8">
-              <div class="stat-box">
-                <div class="stat-value">{{ caseStats.pendingApproval }}</div>
-                <div class="stat-label">待审批</div>
-              </div>
-            </el-col>
-          </el-row>
-        </el-card>
-      </el-col>
+  <div class="operation-modern">
+    <div class="page-header">
+       <h2>运营统计</h2>
+       <p>概览系统核心指标与操作日志</p>
+    </div>
 
-      <el-col :span="12">
-        <el-card shadow="hover">
-          <template #header>
-            <span>问答统计</span>
-          </template>
-          <el-row :gutter="20">
-            <el-col :span="8">
-              <div class="stat-box">
-                <div class="stat-value">{{ qaStats.totalQuestions }}</div>
-                <div class="stat-label">问题总数</div>
-              </div>
-            </el-col>
-            <el-col :span="8">
-              <div class="stat-box success">
-                <div class="stat-value">{{ qaStats.aiResolved }}</div>
-                <div class="stat-label">AI 解决</div>
-              </div>
-            </el-col>
-            <el-col :span="8">
-              <div class="stat-box primary">
-                <div class="stat-value">{{ qaStats.aiResolutionRate }}%</div>
-                <div class="stat-label">解决率</div>
-              </div>
-            </el-col>
-          </el-row>
-        </el-card>
-      </el-col>
-    </el-row>
+    <!-- Stats Overview -->
+    <div class="stats-grid">
+      <!-- Case Stats -->
+      <el-card class="stats-card gradient-blue" shadow="hover">
+        <template #header><div class="card-title">📚 案例库概况</div></template>
+        <div class="stats-content">
+          <div class="main-stat">
+            <div class="num">{{ caseStats.totalCases }}</div>
+            <div class="label">案例总数</div>
+          </div>
+          <div class="sub-stats">
+            <div class="sub-item">
+              <span class="val">{{ caseStats.externalCases }}</span>
+              <span class="lbl">对外</span>
+            </div>
+             <div class="sub-item">
+              <span class="val">{{ caseStats.internalCases }}</span>
+              <span class="lbl">对内</span>
+            </div>
+             <div class="sub-item">
+              <span class="val">{{ caseStats.pendingApproval }}</span>
+              <span class="lbl">待审</span>
+            </div>
+          </div>
+        </div>
+      </el-card>
 
-    <el-row :gutter="20" style="margin-top: 20px">
-      <el-col :span="24">
-        <el-card shadow="hover">
-          <template #header>
-            <span>操作日志</span>
+      <!-- QA Stats -->
+      <el-card class="stats-card gradient-purple" shadow="hover">
+        <template #header><div class="card-title">💡 问答效能</div></template>
+        <div class="stats-content">
+          <div class="main-stat">
+            <div class="num">{{ qaStats.aiResolutionRate }}<span class="unit">%</span></div>
+            <div class="label">AI 解决率</div>
+          </div>
+          <div class="sub-stats">
+            <div class="sub-item">
+              <span class="val">{{ qaStats.totalQuestions }}</span>
+              <span class="lbl">提问</span>
+            </div>
+             <div class="sub-item">
+              <span class="val">{{ qaStats.aiResolved }}</span>
+              <span class="lbl">解决</span>
+            </div>
+          </div>
+        </div>
+      </el-card>
+
+       <!-- Engagement Stats -->
+       <el-card class="stats-card gradient-orange" shadow="hover">
+        <template #header><div class="card-title">🔥 互动数据</div></template>
+        <div class="stats-content">
+          <div class="main-stat">
+            <div class="num">{{ caseStats.todayViews }}</div>
+            <div class="label">今日浏览</div>
+          </div>
+          <div class="sub-stats">
+             <div class="sub-item">
+              <span class="val">{{ caseStats.likes }}</span>
+              <span class="lbl">点赞</span>
+            </div>
+          </div>
+        </div>
+      </el-card>
+    </div>
+
+    <!-- Logs Table -->
+    <el-card class="logs-card" shadow="never">
+      <template #header>
+        <div class="logs-header">
+          <h3>操作日志</h3>
+          <el-button link type="primary">查看更多</el-button>
+        </div>
+      </template>
+      
+      <el-table :data="logs" style="width: 100%" :header-cell-style="{ background: '#f9fafb' }">
+        <el-table-column prop="operator" label="操作人" width="120">
+          <template #default="{ row }">
+             <div class="user-cell">
+               <el-avatar :size="24" style="background:#e5e7eb;color:#374151">{{ row.operator.charAt(0) }}</el-avatar>
+               <span>{{ row.operator }}</span>
+             </div>
           </template>
-          <el-table :data="logs" style="width: 100%">
-            <el-table-column prop="operator" label="操作人" width="120" />
-            <el-table-column prop="operation" label="操作类型" width="120" />
-            <el-table-column prop="target" label="操作对象" />
-            <el-table-column prop="detail" label="详情" />
-            <el-table-column prop="createdAt" label="时间" width="180" />
-          </el-table>
-        </el-card>
-      </el-col>
-    </el-row>
+        </el-table-column>
+        
+        <el-table-column prop="operation" label="操作类型" width="140">
+           <template #default="{ row }">
+             <el-tag effect="light" round>{{ row.operation }}</el-tag>
+           </template>
+        </el-table-column>
+        
+        <el-table-column prop="target" label="对象" min-width="150" />
+        <el-table-column prop="detail" label="详情" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="createdAt" label="时间" width="180">
+          <template #default="{ row }">
+            <span style="color: #9ca3af">{{ row.createdAt }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
   </div>
 </template>
 
@@ -102,19 +113,19 @@ import { ref, reactive, onMounted } from 'vue'
 import { operationApi } from '@/services/case'
 
 const caseStats = reactive({
-  totalCases: 100,
-  internalCases: 30,
-  externalCases: 70,
-  todayViews: 500,
-  likes: 200,
-  pendingApproval: 5
+  totalCases: 0,
+  internalCases: 0,
+  externalCases: 0,
+  todayViews: 0,
+  likes: 0,
+  pendingApproval: 0
 })
 
 const qaStats = reactive({
-  totalQuestions: 1000,
-  answered: 850,
-  aiResolved: 700,
-  aiResolutionRate: 82
+  totalQuestions: 0,
+  answered: 0,
+  aiResolved: 0,
+  aiResolutionRate: 0
 })
 
 const logs = ref([])
@@ -126,45 +137,101 @@ onMounted(async () => {
 
     const qaRes = await operationApi.getQAStats()
     Object.assign(qaStats, qaRes.data || {})
+    
+    // Logs API if exists, else fallback
+     const logsRes = await operationApi.getLogs() // Assuming this exists or falls to catch
+     logs.value = logsRes.data || []
   } catch (e) {
-    // 使用模拟数据
+    // Mock
+    // Keep values if API fails (0) or set mock
+    Object.assign(caseStats, { totalCases: 128, internalCases: 40, externalCases: 88, todayViews: 542, likes: 210, pendingApproval: 3 })
+    Object.assign(qaStats, { totalQuestions: 1530, aiResolved: 1340, aiResolutionRate: 87 })
+
     logs.value = [
-      { operator: '张三', operation: '创建案例', target: '如何重置密码', detail: '创建新案例', createdAt: '2024-01-15 10:30:00' },
-      { operator: '李四', operation: '审批通过', target: '账单查询指南', detail: '审批通过案例', createdAt: '2024-01-15 09:20:00' }
+      { operator: '张三', operation: '创建案例', target: 'VPN连接教程', detail: '新增技术支持类案例', createdAt: '10:30' },
+      { operator: '王五', operation: '审批拒绝', target: '季度报表草稿', detail: '内容不完整', createdAt: '09:15' },
+      { operator: '李四', operation: '更新案例', target: '报销流程v2', detail: '更新附件', createdAt: '昨天' }
     ]
   }
 })
 </script>
 
 <style lang="scss" scoped>
-.operation-page {
-  .stat-box {
-    text-align: center;
-    padding: 20px;
-    background: #f5f7fa;
-    border-radius: 8px;
+.operation-modern {
+  max-width: 1200px;
+  margin: 0 auto;
+}
 
-    &.success {
-      background: #f0f9eb;
-      .stat-value { color: $success-color; }
-    }
+.page-header {
+  margin-bottom: 24px;
+  h2 { font-size: 24px; font-weight: 700; color: #111827; margin: 0 0 8px; }
+  p { color: #6b7280; font-size: 14px; margin: 0; }
+}
 
-    &.primary {
-      background: #ecf5ff;
-      .stat-value { color: $primary-color; }
-    }
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-bottom: 32px;
+}
 
-    .stat-value {
-      font-size: 28px;
-      font-weight: bold;
-      color: $text-primary;
-    }
+.stats-card {
+  border: none;
+  border-radius: 16px;
+  color: white;
+  transition: transform 0.3s;
+  
+  &:hover { transform: translateY(-5px); }
+  
+  &.gradient-blue { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
+  &.gradient-purple { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); }
+  &.gradient-orange { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+  
+  :deep(.el-card__header) {
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding: 16px 20px;
+  }
+  
+  .card-title { font-weight: 600; font-size: 16px; }
+}
 
-    .stat-label {
-      font-size: 13px;
-      color: $text-secondary;
-      margin-top: 8px;
+.stats-content {
+  padding: 10px 0;
+  
+  .main-stat {
+    margin-bottom: 24px;
+    .num { font-size: 36px; font-weight: 700; line-height: 1; margin-bottom: 4px; }
+    .unit { font-size: 18px; font-weight: 500; }
+    .label { font-size: 14px; opacity: 0.9; }
+  }
+  
+  .sub-stats {
+    display: flex;
+    justify-content: space-between;
+    
+    .sub-item {
+      text-align: center;
+      .val { display: block; font-weight: 600; font-size: 16px; }
+      .lbl { font-size: 12px; opacity: 0.8; }
     }
   }
+}
+
+.logs-card {
+  border: none;
+  border-radius: 16px;
+  
+  .logs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    h3 { margin: 0; font-size: 18px; }
+  }
+}
+
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>

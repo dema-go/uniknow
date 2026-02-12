@@ -1,5 +1,5 @@
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -19,11 +19,14 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = Field(..., description="OpenAI API Key")
     OPENAI_MODEL: str = "qwen-plus"
     OPENAI_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    EMBEDDING_MODEL: str = "text-embedding-3-small"
+    EMBEDDING_MODEL: str = "text-embedding-v2"
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = SettingsConfigDict(
+        env_file="/Users/liuziying/uniknow/backend/.env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore"
+    )
 
 
 settings = Settings()

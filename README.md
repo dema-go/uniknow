@@ -33,7 +33,7 @@ UniKnow 是公司内部客服使用的知识库 SaaS 服务，支持案例管理
 - LangGraph + LangChain
 - MongoDB
 - Redis
-- OpenAI GPT-4
+- 阿里云 DashScope (通义千问 + Embedding)
 
 ## 项目结构
 
@@ -85,7 +85,10 @@ uv sync
 
 # 复制环境变量
 cp .env.example .env
-# 编辑 .env 文件，填入 OpenAI API Key
+# 编辑 .env 文件，配置阿里云 DashScope API Key:
+# OPENAI_API_KEY=sk-xxxxx
+# OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+# EMBEDDING_MODEL=text-embedding-v2
 
 # 启动服务
 source .venv/bin/activate

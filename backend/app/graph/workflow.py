@@ -39,7 +39,7 @@ def build_graph_rag_workflow() -> StateGraph:
     # 条件边：评估后根据置信度决定是否重新生成
     workflow.add_conditional_edges(
         "evaluate_answer",
-        lambda x: "END" if x.confidence >= 0.7 else "reformulate_query",
+        lambda x: "END" if x["confidence"] >= 0.7 else "reformulate_query",
         {
             "END": END,
             "reformulate_query": "reformulate_query"

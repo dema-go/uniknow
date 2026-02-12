@@ -6,7 +6,8 @@ from app.api import (
     case_router,
     search_router,
     approval_router,
-    operation_router
+    operation_router,
+    graph_router
 )
 
 app = FastAPI(
@@ -29,6 +30,7 @@ app.include_router(case_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
 app.include_router(approval_router, prefix="/api/v1")
 app.include_router(operation_router, prefix="/api/v1")
+app.include_router(graph_router, prefix="/api/v1")
 
 
 @app.get("/health")
