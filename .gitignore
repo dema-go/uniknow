@@ -5,8 +5,14 @@ __pycache__/
 .Python
 venv/
 .venv/
+.env*/
 env/
-.env/
+.env
+
+# uv
+.uv/
+*.egg-info/
+dist/
 
 # Node.js
 node_modules/

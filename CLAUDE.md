@@ -15,18 +15,17 @@ UniKnow is a case management knowledge base SaaS system for internal customer se
 ```bash
 cd backend
 
-# Install dependencies
-pip install -r requirements.txt
+# Create virtual environment and install dependencies with uv
+uv venv
+uv sync
 
 # Configure environment
 cp .env.example .env
 # Edit .env and add OPENAI_API_KEY
 
-# Run development server
-python -m uvicorn app.main:app --reload
-
-# Run with custom port
-python -m uvicorn app.main:app --reload --port 8000
+# Activate virtual environment and run
+source .venv/bin/activate
+uvicorn app.main:app --reload --port 8000
 ```
 
 ### Frontend (Vue 3 + Vite)

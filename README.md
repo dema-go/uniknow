@@ -66,7 +66,8 @@ uniknow/
 
 ### 环境要求
 - Node.js 18+
-- Python 3.11+
+- Python 3.10+
+- uv (Python 包管理器)
 - MongoDB 7.0+
 - Redis 7+
 
@@ -75,19 +76,20 @@ uniknow/
 ```bash
 cd backend
 
-# 创建虚拟环境
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+# 安装 uv（如果没有）
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 安装依赖
-pip install -r requirements.txt
+# 创建虚拟环境并安装依赖
+uv venv
+uv sync
 
 # 复制环境变量
 cp .env.example .env
 # 编辑 .env 文件，填入 OpenAI API Key
 
 # 启动服务
-python -m uvicorn app.main:app --reload
+source .venv/bin/activate
+uvicorn app.main:app --reload
 ```
 
 后端服务将在 http://localhost:8000 启动
