@@ -30,15 +30,15 @@ async def stream_generator(question: str, tenant_id: str, user_id: str):
         # 发送思考状态
         yield f"event: thinking\ndata: {json.dumps({'message': '正在分析问题...'})}\n\n"
 
-        # 获取答案
-        result = await graph_service.ask_question_stream(
+        # 获取答案流
+        result_stream = graph_service.ask_question_stream(
             question=question,
             tenant_id=tenant_id,
             user_id=user_id
         )
 
         # 流式发送答案内容
-        async for chunk in result:
+        async for chunk in result_stream:
             if chunk.get("type") == "content":
                 yield f"event: content\ndata: {json.dumps({'text': chunk.get('text', '')})}\n\n"
             elif chunk.get("type") == "source":

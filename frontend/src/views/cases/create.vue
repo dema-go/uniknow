@@ -4,7 +4,7 @@
        <span class="back-link" @click="$router.back()">
          <el-icon><ArrowLeft /></el-icon> 返回
        </span>
-       <h2>创建新案例</h2>
+       <h2>{{ isEdit ? '编辑案例' : '创建新案例' }}</h2>
     </div>
 
     <div class="form-wrapper">
@@ -15,6 +15,7 @@
           :rules="rules"
           label-position="top"
           class="modern-form"
+          v-loading="loading"
         >
           <div class="form-section">
             <h3 class="section-title">基本信息</h3>
@@ -89,14 +90,12 @@
                  @onUploadImg="handleImageUpload"
                  class="markdown-editor"
                />
-               <!-- 富文本编辑器 -->
-               <el-input
+               <!-- TinyMCE富文本编辑器 -->
+               <Editor
                  v-else
                  v-model="form.content"
-                 type="textarea"
-                 :rows="12"
-                 placeholder="在此输入案例详细内容..."
-                 resize="none"
+                 :init="editorConfig"
+                 class="tinymce-editor"
                />
              </el-form-item>
           </div>
@@ -117,23 +116,33 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { caseApi } from '@/services/case'
 import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { useUserStore } from '@/stores/user'
+import Editor from '@tinymce/tinymce-vue'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const formRef = ref(null)
 const saving = ref(false)
+const loading = ref(false)
 const editorMode = ref('markdown')
+
+// 判断是否为编辑模式
+const isEdit = computed(() => !!route.params.id)
+const caseId = computed(() => route.params.id)
 
 // 根据用户角色判断按钮文本和提交行为
 const isAdmin = computed(() => userStore.isAdmin())
-const submitButtonText = computed(() => isAdmin.value ? '直接发布' : '提交审批')
+const submitButtonText = computed(() => {
+  if (isEdit.value) return '保存修改'
+  return isAdmin.value ? '直接发布' : '提交审批'
+})
 const saveButtonText = computed(() => isAdmin.value ? '保存为草稿' : '保存草稿')
 
 // Markdown编辑器工具栏配置
@@ -168,6 +177,29 @@ const toolbars = [
   'catalog'
 ]
 
+// TinyMCE 编辑器配置
+const editorConfig = {
+  height: 400,
+  menubar: false,
+  plugins: [
+    'advlist', 'autolink', 'lists', 'link', 'image', 'charmap',
+    'preview', 'anchor', 'searchreplace', 'visualblocks', 'code',
+    'fullscreen', 'insertdatetime', 'media', 'table', 'help', 'wordcount'
+  ],
+  toolbar: 'undo redo | formatselect | bold italic forecolor backcolor | \
+             alignleft aligncenter alignright alignjustify | \
+             bullist numlist outdent indent | removeformat | help',
+  content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; line-height: 1.6; }',
+  language: 'zh_CN',
+  language_url: '/tinymce/langs/zh_CN.js',
+  branding: false,
+  base_url: '/tinymce',
+  suffix: '.min',
+  skin: 'oxide',
+  skin_url: '/tinymce/skins/ui/oxide',
+  content_css: '/tinymce/skins/content/default/content.css'
+}
+
 // Fixed snake_case to match backend
 const form = reactive({
   title: '',
@@ -201,6 +233,35 @@ const handleImageUpload = async (files, callback) => {
   reader.readAsDataURL(files[0])
 }
 
+// 加载案例数据（编辑模式）
+const loadCaseData = async () => {
+  if (!isEdit.value) return
+
+  loading.value = true
+  try {
+    const response = await caseApi.get(caseId.value)
+    const caseData = response.data
+
+    // 填充表单数据
+    form.title = caseData.title || ''
+    form.category_id = caseData.category_id || ''
+    form.case_type = caseData.case_type || 'external'
+    form.tags = caseData.tags || []
+    form.content = caseData.content || ''
+  } catch (error) {
+    ElMessage.error('加载案例数据失败')
+    console.error('Load case error:', error)
+    router.push('/cases')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 页面加载时执行
+onMounted(() => {
+  loadCaseData()
+})
+
 // 保存草稿 - 明确传递 draft 状态
 const handleSaveDraft = async () => {
   if (!formRef.value) return
@@ -233,18 +294,25 @@ const saveWithStatus = async (status) => {
       data.status = status
     }
 
-    await caseApi.create(data)
-
-    if (status === 'draft') {
-      ElMessage.success('草稿保存成功')
-    } else if (isAdmin.value) {
-      ElMessage.success('案例发布成功')
+    if (isEdit.value) {
+      // 编辑模式：调用更新接口
+      await caseApi.update(caseId.value, data)
+      ElMessage.success('案例更新成功')
     } else {
-      ElMessage.success('案例已提交审批')
+      // 创建模式：调用创建接口
+      await caseApi.create(data)
+
+      if (status === 'draft') {
+        ElMessage.success('草稿保存成功')
+      } else if (isAdmin.value) {
+        ElMessage.success('案例发布成功')
+      } else {
+        ElMessage.success('案例已提交审批')
+      }
     }
     router.push('/cases')
   } catch (e) {
-    ElMessage.error('保存失败：请检查网络或必填项')
+    ElMessage.error(isEdit.value ? '更新失败：请检查网络或必填项' : '保存失败：请检查网络或必填项')
   } finally {
     saving.value = false
   }
@@ -312,6 +380,17 @@ const saveWithStatus = async (status) => {
 .markdown-editor {
   border-radius: 8px;
   overflow: hidden;
+}
+
+.tinymce-editor {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+
+  :deep(.tox-tinymce) {
+    border: none;
+    border-radius: 8px;
+  }
 }
 
 .form-actions {

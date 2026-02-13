@@ -37,6 +37,15 @@ const routes = [
         }
       },
       {
+        path: 'cases/:id/edit',
+        name: 'CaseEdit',
+        component: () => import('@/views/cases/create.vue'),
+        meta: {
+          title: '编辑案例',
+          requiresAuth: true
+        }
+      },
+      {
         path: 'cases/:id',
         name: 'CaseDetail',
         component: () => import('@/views/cases/detail.vue'),

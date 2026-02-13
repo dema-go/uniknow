@@ -127,17 +127,25 @@ src/
 | PUT | `/api/v1/cases/{id}` | Update case |
 | DELETE | `/api/v1/cases/{id}` | Delete case |
 | GET | `/api/v1/cases` | List cases (paginated) |
+| POST | `/api/v1/cases/{id}/approve` | Approve case by ID |
+| POST | `/api/v1/cases/{id}/reject` | Reject case by ID |
 | POST | `/api/v1/search/cases` | Seat search |
 | GET | `/api/v1/search/user` | User search (external only) |
+| GET | `/api/v1/approvals` | List approvals (status: pending/approved/rejected/processed) |
 | POST | `/api/v1/approvals/{id}/approve` | Approve case |
 | POST | `/api/v1/approvals/{id}/reject` | Reject case |
-| POST | `/api/v1/graph/ask` | GraphRag Q&A |
+| POST | `/api/v1/graph/ask` | GraphRag Q&A (streaming) |
 
 ## Important Implementation Notes
 
 1. **Database**: MongoDB with Motor async driver (`AsyncIOMotorClient`)
 2. **Cache**: Redis for caching (configured but not yet integrated)
-3. **AI**: OpenAI GPT-4 for answer generation, text-embedding-3-small for vectors
+3. **AI**: OpenAI GPT-4 for answer generation, text-embedding-3-small for vectors (via Alibaba DashScope)
 4. **Case Types**: `internal` (staff only) vs `external` (public)
 5. **Case Status**: `draft` → `pending_approval` → `approved`/`rejected` → `published`
 6. **Authentication**: Bearer token via `Depends(get_current_user)` in API routes
+7. **RBAC Permissions**:
+   - `admin`: Full access - create, edit, delete, approve/reject cases
+   - `agent`: Create and edit cases, requires approval for publishing
+   - `user`: Read-only access
+8. **Streaming Q&A**: GraphRag uses LangGraph's `astream` for real-time streaming with typing effect

@@ -10,6 +10,7 @@ UniKnow 是公司内部客服使用的知识库 SaaS 服务，支持案例管理
 - 案例模板支持
 - 对内/对外案例区分
 - Markdown 编辑器（支持富文本切换）
+- TinyMCE 富文本编辑器
 - 代码高亮和预览
 
 ### 权限管理
@@ -37,6 +38,7 @@ UniKnow 是公司内部客服使用的知识库 SaaS 服务，支持案例管理
 - Vue Router
 - Element Plus
 - md-editor-v3 (Markdown 编辑器)
+- TinyMCE (富文本编辑器)
 - marked (Markdown 渲染)
 
 ### 后端
@@ -164,9 +166,12 @@ docker-compose logs -f
 - `GET /api/v1/search/user` - 用户搜索
 
 ### 审批
+- `GET /api/v1/approvals` - 审批列表（支持 status: pending/approved/rejected/processed）
 - `POST /api/v1/approvals` - 创建审批
 - `POST /api/v1/approvals/{id}/approve` - 通过审批
 - `POST /api/v1/approvals/{id}/reject` - 拒绝审批
+- `POST /api/v1/cases/{id}/approve` - 通过案例审批（基于案例 ID）
+- `POST /api/v1/cases/{id}/reject` - 拒绝案例审批（基于案例 ID）
 
 ### 智能问答
 - `POST /api/v1/graph/ask` - GraphRag 问答

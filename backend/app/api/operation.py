@@ -21,9 +21,20 @@ async def get_case_stats(current_user: TokenData = Depends(get_current_user)):
     # 计算今日浏览量（简化实现，实际应从logs表统计）
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     # 这里使用简化实现，实际应该查询操作日志
-    stats["today_views"] = stats.get("total_views", 0) // 10  # 简化假设今日浏览量为总量的10%
+    today_views = stats.get("total_views", 0) // 10  # 简化假设今日浏览量为总量的10%
 
-    return BaseResponse(data=stats)
+    # 转换为前端期望的驼峰命名格式
+    formatted_stats = {
+        "totalCases": stats.get("total_cases", 0),
+        "internalCases": stats.get("internal_cases", 0),
+        "externalCases": stats.get("external_cases", 0),
+        "pendingApproval": stats.get("pending_approval", 0),
+        "todayViews": today_views,
+        "likes": stats.get("total_likes", 0),
+        "totalViews": stats.get("total_views", 0)
+    }
+
+    return BaseResponse(data=formatted_stats)
 
 
 @router.get("/stats/qa")
