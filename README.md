@@ -107,7 +107,7 @@ cp .env.example .env
 
 # 启动服务
 source .venv/bin/activate
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8000
 ```
 
 后端服务将在 http://localhost:8000 启动
