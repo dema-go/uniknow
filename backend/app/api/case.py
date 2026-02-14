@@ -121,7 +121,9 @@ async def delete_case(
 
 @router.get("")
 async def list_cases(
+    keyword: Optional[str] = Query(None),
     category_id: Optional[str] = Query(None),
+    case_type: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -131,7 +133,9 @@ async def list_cases(
     case_service = CaseService()
     result = await case_service.list_cases(
         tenant_id=current_user.tenant_id,
+        keyword=keyword,
         category_id=category_id,
+        case_type=case_type,
         status=status,
         page=page,
         page_size=page_size

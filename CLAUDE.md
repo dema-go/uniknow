@@ -35,7 +35,7 @@ cd frontend
 # Install dependencies
 npm install
 
-# Run development server (port 3000)
+# Run development server (port 80)
 npm run dev
 
 # Build for production

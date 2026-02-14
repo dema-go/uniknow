@@ -136,7 +136,13 @@ onMounted(async () => {
     Object.assign(caseStats, caseRes.data || {})
 
     const qaRes = await operationApi.getQAStats()
-    Object.assign(qaStats, qaRes.data || {})
+    const qaData = qaRes.data || {}
+    Object.assign(qaStats, {
+      totalQuestions: qaData.total_questions || 0,
+      answered: qaData.answered || 0,
+      aiResolved: qaData.ai_resolved || 0,
+      aiResolutionRate: Math.round((qaData.ai_resolution_rate || 0) * 100)
+    })
     
     // Logs API if exists, else fallback
      const logsRes = await operationApi.getLogs() // Assuming this exists or falls to catch

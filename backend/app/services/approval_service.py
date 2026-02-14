@@ -161,6 +161,7 @@ class ApprovalService:
                     "id": str(approval["_id"]),
                     "case_id": approval["case_id"],
                     "case_title": case["title"] if case else "未知案例",
+                    "case_type": case.get("case_type") if case else None,
                     "requester_id": approval["requester_id"],
                     "requester_name": f"用户{approval['requester_id'][:8]}",
                     "approver_id": approval.get("approver_id"),

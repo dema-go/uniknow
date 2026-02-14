@@ -203,12 +203,12 @@ const fetchStats = async () => {
     const res = await operationApi.getCaseStats()
     const data = res.data || {}
 
-    // 后端返回snake_case，转换为camelCase
+    // 兼容后端返回的 camelCase / snake_case 字段
     statsData.value = {
-      totalCases: data.total_cases || 0,
-      todayViews: data.today_views || 0,
-      aiResolutionRate: Math.round((data.ai_resolution_rate || 0.82) * 100),
-      pendingApprovals: data.pending_approval || 0
+      totalCases: data.totalCases ?? data.total_cases ?? 0,
+      todayViews: data.todayViews ?? data.today_views ?? 0,
+      aiResolutionRate: Math.round(((data.aiResolutionRate ?? data.ai_resolution_rate) || 0.82) * 100),
+      pendingApprovals: data.pendingApproval ?? data.pending_approval ?? 0
     }
   } catch (e) {
     console.error('获取统计数据失败:', e)

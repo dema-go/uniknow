@@ -35,7 +35,7 @@ cd frontend
 # 安装依赖
 npm install
 
-# 启动开发服务（端口 3000）
+# 启动开发服务（端口 80）
 npm run dev
 
 # 生产构建

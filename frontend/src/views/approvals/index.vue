@@ -7,18 +7,18 @@
       </div>
       <div class="header-right">
         <div class="tab-pills">
-          <div 
-            class="tab-item" 
+          <div
+            class="tab-item"
             :class="{ active: activeTab === 'pending' }"
-            @click="activeTab = 'pending'; fetchData()"
+            @click.stop="handleTabChange('pending')"
           >
             待审批
             <span class="badge" v-if="pagination.total > 0 && activeTab === 'pending'">{{ pagination.total }}</span>
           </div>
-          <div 
-            class="tab-item" 
+          <div
+            class="tab-item"
             :class="{ active: activeTab === 'processed' }"
-            @click="activeTab = 'processed'; fetchData()"
+            @click.stop="handleTabChange('processed')"
           >
             已处理
           </div>
@@ -33,45 +33,45 @@
         style="width: 100%"
         :header-cell-style="{ background: '#f9fafb', color: '#6b7280', fontWeight: '600' }"
       >
-        <el-table-column prop="caseId" label="案例ID" width="100">
+        <el-table-column prop="case_id" label="案例ID" width="100">
            <template #default="{ row }">
-             <span class="mono-font">#{{ row.caseId }}</span>
+             <span class="mono-font">#{{ row.case_id }}</span>
            </template>
         </el-table-column>
         
-        <el-table-column prop="caseTitle" label="案例标题" min-width="240">
+        <el-table-column prop="case_title" label="案例标题" min-width="240">
            <template #default="{ row }">
-             <span class="title-link" @click="handleView(row.caseId)">{{ row.caseTitle }}</span>
+             <span class="title-link" @click="handleView(row.case_id)">{{ row.case_title }}</span>
            </template>
         </el-table-column>
         
-        <el-table-column prop="applicant" label="申请人" width="120">
+        <el-table-column prop="requester_name" label="申请人" width="120">
            <template #default="{ row }">
              <div class="user-cell">
-               <el-avatar :size="24" class="sm-avatar">{{ row.applicant.charAt(0) }}</el-avatar>
-               <span>{{ row.applicant }}</span>
+               <el-avatar :size="24" class="sm-avatar">{{ (row.requester_name || '-').charAt(0) }}</el-avatar>
+               <span>{{ row.requester_name || '-' }}</span>
              </div>
            </template>
         </el-table-column>
         
-        <el-table-column prop="type" label="类型" width="100">
+        <el-table-column prop="case_type" label="类型" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.type === 'create' ? 'success' : 'warning'" effect="light" round>
-              {{ row.type === 'create' ? '新增' : '修改' }}
+            <el-tag :type="row.case_type === 'external' ? 'success' : row.case_type === 'internal' ? 'warning' : 'info'" effect="light" round>
+              {{ row.case_type === 'external' ? '对外' : row.case_type === 'internal' ? '对内' : '-' }}
             </el-tag>
           </template>
         </el-table-column>
         
-        <el-table-column prop="createdAt" label="申请时间" width="180">
+        <el-table-column prop="created_at" label="申请时间" width="180">
            <template #default="{ row }">
-             <span class="text-gray">{{ row.createdAt }}</span>
+             <span class="text-gray">{{ formatDateTime(row.created_at) }}</span>
            </template>
         </el-table-column>
         
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <div class="actions-cell">
-              <el-button link type="primary" @click="handleView(row.caseId)">查看</el-button>
+              <el-button link type="primary" @click="handleView(row.case_id)">查看</el-button>
               <template v-if="activeTab === 'pending'">
                 <el-divider direction="vertical" />
                 <el-button link type="success" @click="handleApprove(row.id)">通过</el-button>
@@ -111,6 +111,11 @@ const pagination = reactive({
   total: 0
 })
 
+const formatDateTime = (value) => {
+  if (!value) return '-'
+  return new Date(value).toLocaleString()
+}
+
 const fetchData = async () => {
   loading.value = true
   try {
@@ -118,15 +123,15 @@ const fetchData = async () => {
       status: activeTab.value === 'pending' ? 'pending' : 'processed',
       page: pagination.page
     })
+    // 修复：res 已经是响应对象，直接使用 res.data
     approvals.value = res.data?.items || []
     pagination.total = res.data?.total || 0
   } catch (e) {
-    // 模拟数据
-    approvals.value = [
-      { id: '1', caseId: '1024', caseTitle: '如何高效重置用户密码', applicant: '张三', type: 'create', createdAt: '2024-01-15 10:30' },
-      { id: '2', caseId: '1025', caseTitle: '账单查询流程更新', applicant: '李四', type: 'update', createdAt: '2024-01-15 09:20' }
-    ]
-    pagination.total = 2
+    console.error('获取审批列表失败:', e)
+    ElMessage.error('获取审批列表失败，请稍后重试')
+    // 清空数据而不是使用模拟数据
+    approvals.value = []
+    pagination.total = 0
   } finally {
     loading.value = false
   }
@@ -164,6 +169,12 @@ const handleReject = async (id) => {
   } catch (e) {
     if (e !== 'cancel') ElMessage.error('操作失败')
   }
+}
+
+const handleTabChange = (tab) => {
+  activeTab.value = tab
+  pagination.page = 1  // 重置分页到第一页
+  fetchData()
 }
 
 onMounted(() => {

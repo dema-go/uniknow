@@ -32,23 +32,23 @@
             <div class="tags-wrapper">
               <span 
                 class="filter-tag" 
-                :class="{ active: !filters.categoryId }"
-                @click="setFilter('categoryId', '')"
+                :class="{ active: !filters.category_id }"
+                @click="setFilter('category_id', '')"
               >全部</span>
               <span 
                 class="filter-tag" 
-                :class="{ active: filters.categoryId === '1' }"
-                @click="setFilter('categoryId', '1')"
+                :class="{ active: filters.category_id === '1' }"
+                @click="setFilter('category_id', '1')"
               >账户安全</span>
               <span 
                 class="filter-tag" 
-                :class="{ active: filters.categoryId === '2' }"
-                @click="setFilter('categoryId', '2')"
+                :class="{ active: filters.category_id === '2' }"
+                @click="setFilter('category_id', '2')"
               >财务管理</span>
               <span 
                 class="filter-tag" 
-                :class="{ active: filters.categoryId === '3' }"
-                @click="setFilter('categoryId', '3')"
+                :class="{ active: filters.category_id === '3' }"
+                @click="setFilter('category_id', '3')"
               >产品介绍</span>
             </div>
           </div>
@@ -58,18 +58,18 @@
              <div class="tags-wrapper">
                <span 
                 class="filter-tag" 
-                :class="{ active: !filters.caseType }"
-                @click="setFilter('caseType', '')"
+                :class="{ active: !filters.case_type }"
+                @click="setFilter('case_type', '')"
               >全部</span>
                <span 
                 class="filter-tag" 
-                :class="{ active: filters.caseType === 'external' }"
-                @click="setFilter('caseType', 'external')"
+                :class="{ active: filters.case_type === 'external' }"
+                @click="setFilter('case_type', 'external')"
               >对外公开</span>
                <span 
                 class="filter-tag" 
-                :class="{ active: filters.caseType === 'internal' }"
-                @click="setFilter('caseType', 'internal')"
+                :class="{ active: filters.case_type === 'internal' }"
+                @click="setFilter('case_type', 'internal')"
               >内部专用</span>
              </div>
           </div>
@@ -99,14 +99,14 @@
           </div>
           <div class="card-content">
             <div class="card-badges">
-              <span class="badge category">{{ item.categoryId }}</span>
-              <span class="badge type" :class="item.caseType">{{ item.caseType === 'external' ? '对外' : '对内' }}</span>
+              <span class="badge category">{{ item.category_id || item.categoryId }}</span>
+              <span class="badge type" :class="item.case_type || item.caseType">{{ (item.case_type || item.caseType) === 'external' ? '对外' : '对内' }}</span>
             </div>
             <h3 class="card-title">{{ item.title }}</h3>
-            <p class="card-desc">{{ item.content.substring(0, 100) }}...</p>
+            <p class="card-desc">{{ (item.content || '').substring(0, 100) }}...</p>
             <div class="card-footer">
-              <span class="stat"><el-icon><View /></el-icon> {{ item.viewCount }}</span>
-              <span class="stat"><el-icon><Time /></el-icon> {{ formatDate(item.createdAt) }}</span>
+              <span class="stat"><el-icon><View /></el-icon> {{ item.view_count ?? item.viewCount ?? 0 }}</span>
+              <span class="stat"><el-icon><Clock /></el-icon> {{ formatDate(item.created_at || item.createdAt) }}</span>
             </div>
           </div>
         </div>
@@ -115,7 +115,7 @@
       <el-empty 
         v-if="!loading && results.length === 0 && hasSearched" 
         description="未找到相关案例，换个关键词试试？" 
-        image-size="200"
+        :image-size="200"
       />
       
       <div class="pagination-wrapper" v-if="total > 0">
@@ -147,8 +147,8 @@ const total = ref(0)
 const hasSearched = ref(false)
 
 const filters = reactive({
-  categoryId: '',
-  caseType: ''
+  category_id: '',
+  case_type: ''
 })
 
 const pagination = reactive({
@@ -170,21 +170,26 @@ const handleSearch = async () => {
   loading.value = true
   hasSearched.value = true
   try {
+    const sanitizedFilters = {
+      ...(filters.category_id ? { category_id: filters.category_id } : {}),
+      ...(filters.case_type ? { case_type: filters.case_type } : {})
+    }
+
     let res
     if (!searchQuery.value.trim()) {
       // Empty query: list recent cases instead of search
       res = await caseApi.list({
-        ...filters,
+        ...sanitizedFilters,
         page: pagination.page,
-        pageSize: pagination.pageSize
+        page_size: pagination.pageSize
       })
     } else {
       // Perform search
       res = await searchApi.searchCases({
         query: searchQuery.value,
-        ...filters,
+        ...sanitizedFilters,
         page: pagination.page,
-        pageSize: pagination.pageSize
+        page_size: pagination.pageSize
       })
     }
     

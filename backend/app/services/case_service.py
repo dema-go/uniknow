@@ -65,15 +65,24 @@ class CaseService:
     async def list_cases(
         self,
         tenant_id: str,
+        keyword: Optional[str] = None,
         category_id: Optional[str] = None,
+        case_type: Optional[str] = None,
         status: Optional[CaseStatus] = None,
         page: int = 1,
         page_size: int = 20
     ) -> dict:
         """查询案例列表"""
         query = {"tenant_id": tenant_id}
+        if keyword and keyword.strip():
+            query["$or"] = [
+                {"title": {"$regex": keyword, "$options": "i"}},
+                {"content": {"$regex": keyword, "$options": "i"}},
+            ]
         if category_id:
             query["category_id"] = category_id
+        if case_type:
+            query["case_type"] = case_type
         if status:
             query["status"] = status
 

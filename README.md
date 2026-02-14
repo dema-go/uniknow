@@ -124,7 +124,7 @@ npm install
 npm run dev
 ```
 
-前端服务将在 http://localhost:3000 启动
+前端服务将在 http://localhost:80 启动
 
 ### 测试账号
 
@@ -144,7 +144,7 @@ docker-compose up -d
 docker-compose logs -f
 ```
 
-- 前端: http://localhost:3000
+- 前端: http://localhost:80
 - 后端 API: http://localhost:8000
 - API 文档: http://localhost:8000/docs
 

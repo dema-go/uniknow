@@ -90,12 +90,14 @@
                  @onUploadImg="handleImageUpload"
                  class="markdown-editor"
                />
-               <!-- TinyMCE富文本编辑器 -->
-               <Editor
+               <!-- Quill富文本编辑器 -->
+               <QuillEditor
                  v-else
-                 v-model="form.content"
-                 :init="editorConfig"
-                 class="tinymce-editor"
+                 v-model:content="form.content"
+                 contentType="html"
+                 theme="snow"
+                 :toolbar="quillToolbar"
+                 class="quill-editor"
                />
              </el-form-item>
           </div>
@@ -120,10 +122,11 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { caseApi } from '@/services/case'
-import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { useUserStore } from '@/stores/user'
-import Editor from '@tinymce/tinymce-vue'
+import { MdEditor } from 'md-editor-v3'
+import { QuillEditor } from '@vueup/vue-quill'
+import '@vueup/vue-quill/dist/vue-quill.snow.css'
 
 const router = useRouter()
 const route = useRoute()
@@ -177,28 +180,17 @@ const toolbars = [
   'catalog'
 ]
 
-// TinyMCE 编辑器配置
-const editorConfig = {
-  height: 400,
-  menubar: false,
-  plugins: [
-    'advlist', 'autolink', 'lists', 'link', 'image', 'charmap',
-    'preview', 'anchor', 'searchreplace', 'visualblocks', 'code',
-    'fullscreen', 'insertdatetime', 'media', 'table', 'help', 'wordcount'
-  ],
-  toolbar: 'undo redo | formatselect | bold italic forecolor backcolor | \
-             alignleft aligncenter alignright alignjustify | \
-             bullist numlist outdent indent | removeformat | help',
-  content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; line-height: 1.6; }',
-  language: 'zh_CN',
-  language_url: '/tinymce/langs/zh_CN.js',
-  branding: false,
-  base_url: '/tinymce',
-  suffix: '.min',
-  skin: 'oxide',
-  skin_url: '/tinymce/skins/ui/oxide',
-  content_css: '/tinymce/skins/content/default/content.css'
-}
+// Quill 工具栏配置
+const quillToolbar = [
+  [{ header: [1, 2, 3, false] }],
+  ['bold', 'italic', 'underline', 'strike'],
+  [{ color: [] }, { background: [] }],
+  [{ align: [] }],
+  [{ list: 'ordered' }, { list: 'bullet' }],
+  [{ indent: '-1' }, { indent: '+1' }],
+  ['blockquote', 'code-block', 'link', 'image'],
+  ['clean']
+]
 
 // Fixed snake_case to match backend
 const form = reactive({
@@ -239,8 +231,9 @@ const loadCaseData = async () => {
 
   loading.value = true
   try {
-    const response = await caseApi.get(caseId.value)
-    const caseData = response.data
+    const id = caseId.value
+    const response = await caseApi.get(id)
+    const caseData = response.data || {}
 
     // 填充表单数据
     form.title = caseData.title || ''
@@ -382,14 +375,27 @@ const saveWithStatus = async (status) => {
   overflow: hidden;
 }
 
-.tinymce-editor {
+.quill-editor {
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid #e5e7eb;
+  min-height: 400px;
+  background: #fff;
 
-  :deep(.tox-tinymce) {
+  :deep(.ql-toolbar) {
     border: none;
-    border-radius: 8px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  :deep(.ql-container) {
+    border: none;
+    min-height: 350px;
+  }
+
+  :deep(.ql-editor) {
+    min-height: 350px;
+    font-size: 14px;
+    line-height: 1.6;
   }
 }
 

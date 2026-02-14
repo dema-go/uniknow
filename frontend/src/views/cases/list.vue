@@ -105,15 +105,15 @@
         <el-table-column label="数据" width="180">
           <template #default="{ row }">
             <div class="stats-cell">
-              <span title="浏览"><el-icon><View /></el-icon> {{ row.viewCount }}</span>
-              <span title="点赞"><el-icon><Star /></el-icon> {{ row.likeCount }}</span>
+              <span title="浏览"><el-icon><View /></el-icon> {{ row.view_count ?? row.viewCount ?? 0 }}</span>
+              <span title="点赞"><el-icon><Star /></el-icon> {{ row.like_count ?? row.likeCount ?? 0 }}</span>
             </div>
           </template>
         </el-table-column>
         
         <el-table-column label="创建时间" width="180">
            <template #default="{ row }">
-            <span class="date-text">{{ formatDate(row.createdAt) }}</span>
+            <span class="date-text">{{ formatDate(row.created_at || row.createdAt) }}</span>
           </template>
         </el-table-column>
         
@@ -202,7 +202,7 @@ const fetchData = async () => {
     const res = await caseApi.list({
       ...filters,
       page: pagination.page,
-      pageSize: pagination.pageSize
+      page_size: pagination.pageSize
     })
     tableData.value = res.data?.items || []
     pagination.total = res.data?.total || 0
@@ -228,7 +228,7 @@ const handleView = (id) => {
 }
 
 const handleEdit = (id) => {
-  router.push(`/cases/${id}`)
+  router.push(`/cases/${id}/edit`)
 }
 
 const handleDelete = async (id) => {

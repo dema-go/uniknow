@@ -158,7 +158,7 @@ npm run dev
 }
 
 const handleEdit = () => {
-  router.push(`/cases/create?id=${route.params.id}`)
+  router.push(`/cases/${route.params.id}/edit`)
 }
 
 const handleLike = () => {
