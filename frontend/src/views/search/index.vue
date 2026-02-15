@@ -53,21 +53,21 @@
             </div>
           </div>
 
-          <div class="filter-group">
+          <div class="filter-group" v-if="canViewInternal">
              <span class="filter-label">类型:</span>
              <div class="tags-wrapper">
-               <span 
-                class="filter-tag" 
+               <span
+                class="filter-tag"
                 :class="{ active: !filters.case_type }"
                 @click="setFilter('case_type', '')"
               >全部</span>
-               <span 
-                class="filter-tag" 
+               <span
+                class="filter-tag"
                 :class="{ active: filters.case_type === 'external' }"
                 @click="setFilter('case_type', 'external')"
               >对外公开</span>
-               <span 
-                class="filter-tag" 
+               <span
+                class="filter-tag"
                 :class="{ active: filters.case_type === 'internal' }"
                 @click="setFilter('case_type', 'internal')"
               >内部专用</span>
@@ -133,18 +133,23 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { searchApi, caseApi } from '@/services/case'
+import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 
 const searchQuery = ref('')
 const loading = ref(false)
 const results = ref([])
 const total = ref(0)
 const hasSearched = ref(false)
+
+// 判断用户是否可以查看内部案例（admin 或 agent）
+const canViewInternal = computed(() => ['admin', 'agent'].includes(userStore.userInfo.role))
 
 const filters = reactive({
   category_id: '',
@@ -170,16 +175,22 @@ const handleSearch = async () => {
   loading.value = true
   hasSearched.value = true
   try {
-    const sanitizedFilters = {
+    // 普通用户强制只搜索对外案例
+    const searchFilters = {
       ...(filters.category_id ? { category_id: filters.category_id } : {}),
       ...(filters.case_type ? { case_type: filters.case_type } : {})
+    }
+
+    // 如果用户不是 admin/agent，强制设置 case_type 为 external
+    if (!canViewInternal.value) {
+      searchFilters.case_type = 'external'
     }
 
     let res
     if (!searchQuery.value.trim()) {
       // Empty query: list recent cases instead of search
       res = await caseApi.list({
-        ...sanitizedFilters,
+        ...searchFilters,
         page: pagination.page,
         page_size: pagination.pageSize
       })
@@ -187,12 +198,12 @@ const handleSearch = async () => {
       // Perform search
       res = await searchApi.searchCases({
         query: searchQuery.value,
-        ...sanitizedFilters,
+        ...searchFilters,
         page: pagination.page,
         page_size: pagination.pageSize
       })
     }
-    
+
     results.value = res.data?.items || []
     total.value = res.data?.total || 0
   } catch (e) {
@@ -215,7 +226,7 @@ onMounted(() => {
     handleSearch()
   } else {
     // Initial load recommended content
-    handleSearch() 
+    handleSearch()
   }
 })
 

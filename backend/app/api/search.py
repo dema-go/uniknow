@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Query
 from app.schemas.case import CaseSearchRequest
 from app.schemas.common import BaseResponse
 from app.services.search_service import SearchService
-from app.models.user import TokenData
+from app.models.user import TokenData, UserRole
 from app.core.security import get_current_user
 
 router = APIRouter(prefix="/search", tags=["案例搜索"])
@@ -14,13 +14,25 @@ async def search_cases(
     search_request: CaseSearchRequest,
     current_user: TokenData = Depends(get_current_user)
 ):
-    """坐席搜索案例"""
+    """坐席搜索案例
+
+    权限控制：
+    - admin/agent: 可以搜索所有案例，支持 case_type 筛选
+    - user: 只能搜索 external 案例，忽略 case_type 参数
+    """
     search_service = SearchService()
+
+    # 根据用户角色限制搜索范围
+    case_type = search_request.case_type
+    if current_user.role == UserRole.USER:
+        # 普通用户只能搜索对外案例
+        case_type = "external"
+
     result = await search_service.search_cases(
         query=search_request.query,
         tenant_id=current_user.tenant_id,
         category_id=search_request.category_id,
-        case_type=search_request.case_type,
+        case_type=case_type,
         tags=search_request.tags,
         page=search_request.page,
         page_size=search_request.page_size
