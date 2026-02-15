@@ -19,18 +19,32 @@ class CaseStatus(str, Enum):
     ARCHIVED = "archived"      # 已归档
 
 
+class CaseForm(str, Enum):
+    """案例形式"""
+    FAQ = "faq"           # FAQ 类型（纯文本）
+    DOCUMENT = "document"  # 文档类型（文件上传）
+
+
 class Case(BaseModel):
     """案例模型"""
     id: Optional[str] = None
     tenant_id: str                     # 租户ID
     title: str                         # 案例标题
-    content: str                       # 案例内容
+    content: str                       # 案例内容（FAQ 内容或文档描述）
     category_id: str                   # 目录ID
     case_type: CaseType = CaseType.EXTERNAL
+    case_form: CaseForm = CaseForm.FAQ # 案例形式
     status: CaseStatus = CaseStatus.DRAFT
     tags: List[str] = []
     template_id: Optional[str] = None  # 使用的模板ID
     approval_id: Optional[str] = None  # 审批流程ID
+
+    # 文档相关字段（仅当 case_form=document 时使用）
+    file_name: Optional[str] = None    # 原始文件名
+    file_path: Optional[str] = None    # MinIO 存储路径
+    file_size: Optional[int] = None    # 文件大小（字节）
+    file_type: Optional[str] = None    # 文件 MIME 类型
+
     view_count: int = 0               # 浏览量
     like_count: int = 0                # 点赞数
     dislike_count: int = 0            # 点踩数

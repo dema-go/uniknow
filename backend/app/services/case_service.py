@@ -358,6 +358,7 @@ class CaseService:
         keyword: Optional[str] = None,
         category_id: Optional[str] = None,
         case_type: Optional[str] = None,
+        case_form: Optional[str] = None,
         status: Optional[CaseStatus] = None,
         page: int = 1,
         page_size: int = 20
@@ -373,6 +374,8 @@ class CaseService:
             query["category_id"] = category_id
         if case_type:
             query["case_type"] = case_type
+        if case_form:
+            query["case_form"] = case_form
         if status:
             query["status"] = status
 

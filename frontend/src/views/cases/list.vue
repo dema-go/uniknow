@@ -50,6 +50,14 @@
           </el-radio-group>
         </el-form-item>
 
+        <el-form-item>
+          <el-radio-group v-model="filters.case_form" @change="handleSearch" class="type-radio">
+            <el-radio-button value="" label="">全部</el-radio-button>
+            <el-radio-button value="faq" label="faq">FAQ</el-radio-button>
+            <el-radio-button value="document" label="document">文档</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+
         <el-form-item class="action-items">
           <el-button @click="handleSearch" circle><el-icon><Refresh /></el-icon></el-button>
         </el-form-item>
@@ -67,10 +75,21 @@
         <el-table-column prop="title" label="案例标题" min-width="240">
           <template #default="{ row }">
             <div class="title-cell" @click="handleView(row.id)">
-              <div class="icon-wrapper">
+              <div class="icon-wrapper" :class="row.case_form === 'document' ? 'document' : 'faq'">
                 <el-icon><Document /></el-icon>
               </div>
-              <span class="title-text">{{ row.title }}</span>
+              <div class="title-info">
+                <span class="title-text">{{ row.title }}</span>
+                <el-tag
+                  v-if="row.case_form === 'document'"
+                  type="primary"
+                  size="small"
+                  effect="plain"
+                  class="form-tag"
+                >
+                  文档
+                </el-tag>
+              </div>
             </div>
           </template>
         </el-table-column>
@@ -171,7 +190,8 @@ const filters = reactive({
   keyword: '',
   category_id: '',
   status: '',
-  case_type: ''
+  case_type: '',
+  case_form: ''  // 案例形式筛选
 })
 
 const pagination = reactive({
@@ -328,7 +348,7 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   cursor: pointer;
-  
+
   .icon-wrapper {
     width: 36px;
     height: 36px;
@@ -339,14 +359,37 @@ onMounted(() => {
     justify-content: center;
     color: #6b7280;
     transition: all 0.2s;
+
+    &.document {
+      background: #e0e7ff;
+      color: #667eea;
+    }
+
+    &.faq {
+      background: #fef3c7;
+      color: #d97706;
+    }
   }
-  
+
+  .title-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   .title-text {
     font-weight: 500;
     color: #374151;
     transition: color 0.2s;
   }
-  
+
+  .form-tag {
+    font-size: 11px;
+    padding: 0 6px;
+    height: 18px;
+    line-height: 16px;
+  }
+
   &:hover {
     .icon-wrapper { background: #e0e7ff; color: #667eea; }
     .title-text { color: #667eea; }

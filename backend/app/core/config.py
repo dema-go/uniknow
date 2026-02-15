@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     NEO4J_PASSWORD: str = "uniknow123"
     NEO4J_ENABLED: bool = True
 
+    # MinIO 文件存储配置
+    MINIO_ENDPOINT: str = "localhost:9002"
+    MINIO_ACCESS_KEY: str = "minioadmin"
+    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_BUCKET_NAME: str = "uniknow-documents"
+    MINIO_USE_SSL: bool = False
+
     # JWT配置
     SECRET_KEY: str = Field(default="your-secret-key-change-in-production", description="JWT密钥")
     JWT_ALGORITHM: str = "HS256"

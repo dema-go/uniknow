@@ -79,3 +79,25 @@ export const qaApi = {
     return request.post('/graph/ask', { question })
   }
 }
+
+export const fileApi = {
+  // 上传文件
+  upload(formData, onProgress) {
+    return request.post('/files/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: onProgress
+    })
+  },
+
+  // 下载文件
+  download(bucket, objectName) {
+    return request.get(`/files/${bucket}/${objectName}`, {
+      responseType: 'blob'
+    })
+  },
+
+  // 删除文件
+  delete(bucket, objectName) {
+    return request.delete(`/files/${bucket}/${objectName}`)
+  }
+}

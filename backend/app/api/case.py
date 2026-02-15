@@ -124,6 +124,7 @@ async def list_cases(
     keyword: Optional[str] = Query(None),
     category_id: Optional[str] = Query(None),
     case_type: Optional[str] = Query(None),
+    case_form: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -136,6 +137,7 @@ async def list_cases(
         keyword=keyword,
         category_id=category_id,
         case_type=case_type,
+        case_form=case_form,
         status=status,
         page=page,
         page_size=page_size

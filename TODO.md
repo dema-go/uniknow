@@ -20,4 +20,12 @@
 - [x] 案例模版点击后没有反应，并没有出现模版的选项
     - **原因**: Docker 容器中的前端代码是旧版本，未包含 EditorSidebar 组件
     - **解决**: 重新构建前端 Docker 镜像 (`docker-compose build frontend`)
-- [ ] 参考WeKnora项目可以区分出案例形式，大体分为两种：FAQ和文档。文档可以存到MinIO上。WeKnora的代码在～/WeKnora中，可以参考
+- [x] 参考WeKnora项目可以区分出案例形式，大体分为两种：FAQ和文档。文档可以存到MinIO上。WeKnora的代码在～/WeKnora中，可以参考
+    - **后端实现**:
+        - 新增 `CaseForm` 枚举（faq/document）和文档相关字段
+        - 创建 MinIO 存储服务 (`storage_service.py`)
+        - 创建文件上传/下载 API (`file.py`)
+    - **前端实现**:
+        - 案例创建页面支持形式选择和文件上传
+        - 案例详情页支持文档下载
+        - 案例列表页支持形式筛选

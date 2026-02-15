@@ -15,7 +15,10 @@
             <div class="title-section">
               <h1 class="case-title">{{ caseData.title }}</h1>
                <div class="meta-tags">
-                 <el-tag :type="caseData.case_type === 'external' ? 'success' : 'warning'" effect="light" round>
+                 <el-tag :type="getFormTagType(caseData.case_form)" effect="light" round>
+                  {{ caseData.case_form === 'document' ? '文档' : 'FAQ' }}
+                </el-tag>
+                <el-tag :type="caseData.case_type === 'external' ? 'success' : 'warning'" effect="light" round>
                   {{ caseData.case_type === 'external' ? '对外公开' : '内部专用' }}
                 </el-tag>
                 <el-tag type="info" effect="plain" round>{{ getStatusText(caseData.status) }}</el-tag>
@@ -50,8 +53,31 @@
       <!-- Main Content -->
       <div class="content-wrapper">
         <el-card class="content-card" shadow="never">
-           <!-- Markdown渲染内容 -->
-           <article class="article-content markdown-body" v-html="renderedContent"></article>
+          <!-- 文档类型：显示文件信息和下载按钮 -->
+          <div v-if="caseData.case_form === 'document'" class="document-section">
+            <div class="document-info">
+              <el-icon class="file-icon"><Document /></el-icon>
+              <div class="file-details">
+                <h3>{{ caseData.file_name || '未知文件' }}</h3>
+                <p class="file-meta">
+                  <span v-if="caseData.file_size">{{ formatFileSize(caseData.file_size) }}</span>
+                  <span v-if="caseData.file_type">{{ caseData.file_type }}</span>
+                </p>
+              </div>
+            </div>
+            <el-button type="primary" @click="handleDownload" :loading="downloading">
+              <el-icon><Download /></el-icon> 下载文档
+            </el-button>
+          </div>
+
+          <!-- 文档描述 -->
+          <div v-if="caseData.case_form === 'document' && caseData.content" class="document-description">
+            <h4>文档描述</h4>
+            <p>{{ caseData.content }}</p>
+          </div>
+
+           <!-- FAQ 类型：Markdown渲染内容 -->
+           <article v-if="caseData.case_form === 'faq'" class="article-content markdown-body" v-html="renderedContent"></article>
 
            <div class="article-footer">
              <div class="interaction-bar">
@@ -61,7 +87,7 @@
                <el-button round class="action-btn dislike" @click="handleDislike">
                  <el-icon><StarFilled /></el-icon> <span>踩</span>
                </el-button>
-               <el-button round class="action-btn copy" @click="handleCopy">
+               <el-button round class="action-btn copy" @click="handleCopy" v-if="caseData.case_form === 'faq'">
                  <el-icon><CopyDocument /></el-icon> <span>复制</span>
                </el-button>
              </div>
@@ -76,11 +102,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Document, Download } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import 'github-markdown-css'
 import 'highlight.js/styles/github.css'
 import hljs from 'highlight.js'
-import { caseApi } from '@/services/case'
+import { caseApi, fileApi } from '@/services/case'
 
 // 配置marked代码高亮
 marked.setOptions({
@@ -99,6 +126,7 @@ const router = useRouter()
 
 const caseData = ref(null)
 const liked = ref(false)
+const downloading = ref(false)
 
 // 计算渲染后的Markdown内容
 const renderedContent = computed(() => {
@@ -116,9 +144,25 @@ const getStatusText = (status) => {
   return map[status] || status
 }
 
+const getFormTagType = (form) => {
+  return form === 'document' ? 'primary' : ''
+}
+
 const formatDate = (dateStr) => {
   if (!dateStr) return '-'
   return new Date(dateStr).toLocaleDateString()
+}
+
+const formatFileSize = (bytes) => {
+  if (!bytes) return '-'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let size = bytes
+  let unitIndex = 0
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
+    unitIndex++
+  }
+  return `${size.toFixed(1)} ${units[unitIndex]}`
 }
 
 const fetchData = async () => {
@@ -175,6 +219,41 @@ const handleDislike = () => {
 const handleCopy = () => {
   navigator.clipboard.writeText(caseData.value.content)
   ElMessage.success('已复制到剪贴板')
+}
+
+const handleDownload = async () => {
+  if (!caseData.value.file_path) {
+    ElMessage.error('文件路径不存在')
+    return
+  }
+
+  downloading.value = true
+  try {
+    // 解析 file_path (格式: bucket/object_name)
+    const pathParts = caseData.value.file_path.split('/')
+    const bucket = pathParts[0]
+    const objectName = pathParts.slice(1).join('/')
+
+    const response = await fileApi.download(bucket, objectName)
+
+    // 创建下载链接
+    const blob = new Blob([response])
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = caseData.value.file_name || 'download'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+
+    ElMessage.success('下载成功')
+  } catch (error) {
+    console.error('Download error:', error)
+    ElMessage.error('下载失败')
+  } finally {
+    downloading.value = false
+  }
 }
 
 onMounted(() => {
@@ -254,6 +333,66 @@ onMounted(() => {
     border-radius: 16px;
     padding: 40px;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  }
+
+  // 文档类型样式
+  .document-section {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px;
+    background: #f9fafb;
+    border-radius: 12px;
+    margin-bottom: 24px;
+
+    .document-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+
+      .file-icon {
+        font-size: 48px;
+        color: #667eea;
+      }
+
+      .file-details {
+        h3 {
+          margin: 0 0 4px 0;
+          font-size: 16px;
+          font-weight: 600;
+          color: #111827;
+        }
+
+        .file-meta {
+          margin: 0;
+          font-size: 13px;
+          color: #6b7280;
+
+          span {
+            margin-right: 12px;
+          }
+        }
+      }
+    }
+  }
+
+  .document-description {
+    margin-bottom: 24px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #f3f4f6;
+
+    h4 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #374151;
+    }
+
+    p {
+      margin: 0;
+      color: #6b7280;
+      line-height: 1.6;
+    }
   }
 
   // GitHub Markdown样式

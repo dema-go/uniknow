@@ -4,6 +4,7 @@ from .approval import router as approval_router
 from .operation import router as operation_router
 from .graph import router as graph_router
 from .auth import router as auth_router
+from .file import router as file_router
 
 __all__ = [
     "case_router",
@@ -11,5 +12,6 @@ __all__ = [
     "approval_router",
     "operation_router",
     "graph_router",
-    "auth_router"
+    "auth_router",
+    "file_router"
 ]

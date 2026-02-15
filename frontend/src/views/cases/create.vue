@@ -19,6 +19,21 @@
         >
           <div class="form-section">
             <h3 class="section-title">基本信息</h3>
+
+            <!-- 案例形式选择 -->
+            <el-form-item label="案例形式" prop="case_form">
+              <el-radio-group v-model="form.case_form" size="large" class="form-type-radio" :disabled="isEdit">
+                <el-radio-button value="faq" label="faq">
+                  <el-icon><ChatDotRound /></el-icon>
+                  FAQ 问答
+                </el-radio-button>
+                <el-radio-button value="document" label="document">
+                  <el-icon><Document /></el-icon>
+                  文档上传
+                </el-radio-button>
+              </el-radio-group>
+            </el-form-item>
+
             <el-form-item label="案例标题" prop="title">
               <el-input
                 v-model="form.title"
@@ -62,7 +77,8 @@
             </el-form-item>
           </div>
 
-          <div class="form-section">
+          <!-- FAQ 类型：显示编辑器 -->
+          <div class="form-section" v-if="form.case_form === 'faq'">
              <div class="section-header">
                <h3 class="section-title">内容详情</h3>
                <el-button-group size="small">
@@ -102,6 +118,45 @@
              </el-form-item>
           </div>
 
+          <!-- 文档类型：显示文件上传 -->
+          <div class="form-section" v-if="form.case_form === 'document'">
+            <h3 class="section-title">文档上传</h3>
+
+            <el-form-item prop="file">
+              <el-upload
+                ref="uploadRef"
+                class="document-uploader"
+                drag
+                :auto-upload="false"
+                :limit="1"
+                :on-change="handleFileChange"
+                :on-remove="handleFileRemove"
+                :file-list="fileList"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md"
+              >
+                <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+                <div class="el-upload__text">
+                  将文件拖到此处，或<em>点击上传</em>
+                </div>
+                <template #tip>
+                  <div class="el-upload__tip">
+                    支持 PDF、Word、Excel、PPT、TXT、Markdown 格式，最大 50MB
+                  </div>
+                </template>
+              </el-upload>
+            </el-form-item>
+
+            <!-- 文档描述 -->
+            <el-form-item label="文档描述">
+              <el-input
+                v-model="form.content"
+                type="textarea"
+                :rows="3"
+                placeholder="请输入文档的简要描述..."
+              />
+            </el-form-item>
+          </div>
+
           <div class="form-actions">
             <el-button size="large" @click="$router.back()">取消</el-button>
             <el-button size="large" type="primary" plain @click="handleSaveDraft" :loading="saving">
@@ -117,6 +172,7 @@
 
     <!-- 编辑器侧边栏 -->
     <EditorSidebar
+      v-if="form.case_form === 'faq'"
       :editor-mode="editorMode"
       @template-select="handleTemplateInsert"
     />
@@ -127,7 +183,8 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { caseApi } from '@/services/case'
+import { ChatDotRound, Document, UploadFilled } from '@element-plus/icons-vue'
+import { caseApi, fileApi } from '@/services/case'
 import 'md-editor-v3/lib/style.css'
 import { useUserStore } from '@/stores/user'
 import { MdEditor } from 'md-editor-v3'
@@ -139,6 +196,7 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const formRef = ref(null)
+const uploadRef = ref(null)
 const saving = ref(false)
 const loading = ref(false)
 const editorMode = ref('markdown')
@@ -199,14 +257,24 @@ const quillToolbar = [
   ['clean']
 ]
 
-// Fixed snake_case to match backend
+// 表单数据
 const form = reactive({
   title: '',
   category_id: '',
   case_type: 'external',
+  case_form: 'faq',  // 默认 FAQ 类型
   tags: [],
-  content: ''
+  content: '',
+  // 文档相关
+  file_name: '',
+  file_path: '',
+  file_size: 0,
+  file_type: ''
 })
+
+// 文件上传相关
+const selectedFile = ref(null)
+const fileList = ref([])
 
 const rules = {
   title: [
@@ -217,8 +285,34 @@ const rules = {
     { required: true, message: '请选择分类', trigger: 'change' }
   ],
   content: [
-    { required: true, message: '请输入案例内容', trigger: 'blur' }
+    {
+      required: true,
+      message: '请输入案例内容',
+      trigger: 'blur',
+      validator: (rule, value, callback) => {
+        if (form.case_form === 'faq' && !value) {
+          callback(new Error('请输入案例内容'))
+        } else {
+          callback()
+        }
+      }
+    }
   ]
+}
+
+// 文件上传处理
+const handleFileChange = (file) => {
+  selectedFile.value = file.raw
+  form.file_name = file.name
+  form.file_size = file.size
+}
+
+const handleFileRemove = () => {
+  selectedFile.value = null
+  form.file_name = ''
+  form.file_path = ''
+  form.file_size = 0
+  form.file_type = ''
 }
 
 // 图片上传处理
@@ -258,8 +352,18 @@ const loadCaseData = async () => {
     form.title = caseData.title || ''
     form.category_id = caseData.category_id || ''
     form.case_type = caseData.case_type || 'external'
+    form.case_form = caseData.case_form || 'faq'
     form.tags = caseData.tags || []
     form.content = caseData.content || ''
+
+    // 文档类型：填充文件信息
+    if (caseData.case_form === 'document' && caseData.file_name) {
+      form.file_name = caseData.file_name
+      form.file_path = caseData.file_path
+      form.file_size = caseData.file_size
+      form.file_type = caseData.file_type
+      fileList.value = [{ name: caseData.file_name }]
+    }
   } catch (error) {
     ElMessage.error('加载案例数据失败')
     console.error('Load case error:', error)
@@ -300,6 +404,30 @@ const saveWithStatus = async (status) => {
   saving.value = true
   try {
     const data = { ...form }
+
+    // 如果是文档类型且有选择新文件，先上传文件
+    if (form.case_form === 'document' && selectedFile.value) {
+      const formData = new FormData()
+      formData.append('file', selectedFile.value)
+
+      try {
+        const uploadRes = await fileApi.upload(formData)
+        data.file_path = uploadRes.data.file_path
+        data.file_name = uploadRes.data.file_name
+        data.file_size = uploadRes.data.file_size
+        data.file_type = uploadRes.data.file_type
+      } catch (uploadError) {
+        ElMessage.error('文件上传失败')
+        saving.value = false
+        return
+      }
+    }
+
+    // 文档类型如果没有内容，设置为空字符串
+    if (form.case_form === 'document' && !data.content) {
+      data.content = ''
+    }
+
     // 只有显式传递 status 时才添加（如 draft）
     // 提交时不传 status，由后端根据用户角色决定
     if (status) {
@@ -388,6 +516,68 @@ const saveWithStatus = async (status) => {
 
 .half-width { flex: 1; }
 .full-width { width: 100%; }
+
+// 案例形式选择样式
+.form-type-radio {
+  width: 100%;
+
+  :deep(.el-radio-button) {
+    flex: 1;
+
+    .el-radio-button__inner {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+    }
+  }
+}
+
+// 文档上传样式
+.document-uploader {
+  width: 100%;
+
+  :deep(.el-upload) {
+    width: 100%;
+  }
+
+  :deep(.el-upload-dragger) {
+    width: 100%;
+    padding: 40px;
+    border-radius: 12px;
+    border: 2px dashed #d1d5db;
+    background: #f9fafb;
+
+    &:hover {
+      border-color: #667eea;
+      background: #f3f4f6;
+    }
+  }
+
+  .el-icon--upload {
+    font-size: 48px;
+    color: #9ca3af;
+    margin-bottom: 16px;
+  }
+
+  .el-upload__text {
+    color: #6b7280;
+    font-size: 14px;
+
+    em {
+      color: #667eea;
+      font-style: normal;
+    }
+  }
+
+  .el-upload__tip {
+    margin-top: 8px;
+    color: #9ca3af;
+    font-size: 12px;
+  }
+}
 
 .markdown-editor {
   border-radius: 8px;

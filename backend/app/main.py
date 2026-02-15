@@ -8,7 +8,8 @@ from app.api import (
     approval_router,
     operation_router,
     graph_router,
-    auth_router
+    auth_router,
+    file_router
 )
 
 app = FastAPI(
@@ -33,6 +34,7 @@ app.include_router(search_router, prefix="/api/v1")
 app.include_router(approval_router, prefix="/api/v1")
 app.include_router(operation_router, prefix="/api/v1")
 app.include_router(graph_router, prefix="/api/v1")
+app.include_router(file_router, prefix="/api/v1")
 
 
 @app.get("/health")
