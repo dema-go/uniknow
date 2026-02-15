@@ -11,6 +11,26 @@ UniKnow is a case management knowledge base SaaS system for internal customer se
 
 ## Commands
 
+### Quick Start (启动所有服务)
+
+```bash
+# 1. 启动 Docker Desktop（如果未运行）
+open -a Docker
+
+# 2. 启动 Docker 容器（MongoDB, Redis 等）
+docker-compose up -d
+
+# 3. 启动后端（新终端窗口）
+cd backend && source .venv/bin/activate && uvicorn app.main:app --reload --port 8000
+
+# 4. 启动前端（新终端窗口）
+cd frontend && npm run dev
+```
+
+服务地址：
+- 前端：http://localhost:80
+- 后端：http://127.0.0.1:8000
+
 ### Backend (FastAPI)
 ```bash
 cd backend
@@ -135,6 +155,34 @@ src/
 | POST | `/api/v1/approvals/{id}/approve` | Approve case |
 | POST | `/api/v1/approvals/{id}/reject` | Reject case |
 | POST | `/api/v1/graph/ask` | GraphRag Q&A (streaming) |
+
+## Task Development Workflow (任务开发流程)
+
+项目使用 `TODO.md` 管理待办任务，按以下流程循环执行：
+
+```
+1. 读取 TODO.md 获取任务列表
+      ↓
+2. 取第一个未完成任务进行开发
+      ↓
+3. 开发完成后自测验证（启动服务，使用 agent-browser 自动化测试）
+      ↓
+4. 更新 TODO.md 标记任务完成
+      ↓
+5. 提交代码到 GitHub
+      ↓
+6. 清空上下文，回到步骤 1 取下一个任务
+      ↓
+... 循环直到所有任务完成 ...
+      ↓
+全量回归测试
+```
+
+**注意事项**：
+- 每次只处理一个任务，完成后提交
+- 提交前必须自测验证功能正常
+- 任务完成后及时更新 TODO.md 勾选状态
+- 设计产出保存到 `design/` 文件夹中（如功能设计文档、UI 设计稿等）
 
 ## Important Implementation Notes
 

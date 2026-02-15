@@ -91,14 +91,14 @@
                  class="markdown-editor"
                />
                <!-- Quill富文本编辑器 -->
-               <QuillEditor
-                 v-else
-                 v-model:content="form.content"
-                 contentType="html"
-                 theme="snow"
-                 :toolbar="quillToolbar"
-                 class="quill-editor"
-               />
+               <div v-else class="quill-editor-wrapper">
+                 <QuillEditor
+                   v-model:content="form.content"
+                   contentType="html"
+                   theme="snow"
+                   :toolbar="quillToolbar"
+                 />
+               </div>
              </el-form-item>
           </div>
 
@@ -114,6 +114,12 @@
         </el-form>
       </el-card>
     </div>
+
+    <!-- 编辑器侧边栏 -->
+    <EditorSidebar
+      :editor-mode="editorMode"
+      @template-select="handleTemplateInsert"
+    />
   </div>
 </template>
 
@@ -127,6 +133,7 @@ import { useUserStore } from '@/stores/user'
 import { MdEditor } from 'md-editor-v3'
 import { QuillEditor } from '@vueup/vue-quill'
 import '@vueup/vue-quill/dist/vue-quill.snow.css'
+import EditorSidebar from '@/components/editor/EditorSidebar.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -223,6 +230,18 @@ const handleImageUpload = async (files, callback) => {
     callback(e.target.result)
   }
   reader.readAsDataURL(files[0])
+}
+
+// 处理模版插入
+const handleTemplateInsert = (template) => {
+  // 如果当前有内容，询问是否覆盖
+  if (form.content && form.content.trim()) {
+    // 直接追加模版内容
+    form.content = form.content + '\n\n' + template.content
+  } else {
+    // 直接使用模版内容
+    form.content = template.content
+  }
 }
 
 // 加载案例数据（编辑模式）
@@ -375,27 +394,49 @@ const saveWithStatus = async (status) => {
   overflow: hidden;
 }
 
-.quill-editor {
+.quill-editor-wrapper {
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid #e5e7eb;
   min-height: 400px;
   background: #fff;
+  display: flex;
+  flex-direction: column;
 
   :deep(.ql-toolbar) {
     border: none;
     border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+    flex-shrink: 0;
   }
 
   :deep(.ql-container) {
     border: none;
     min-height: 350px;
+    flex: 1;
+    font-size: 14px;
   }
 
   :deep(.ql-editor) {
     min-height: 350px;
     font-size: 14px;
     line-height: 1.6;
+    padding: 16px;
+  }
+
+  // 空白状态下的 placeholder 样式
+  :deep(.ql-editor.ql-blank::before) {
+    font-style: normal;
+    color: #9ca3af;
+    font-size: 14px;
+    left: 16px;
+    right: 16px;
+  }
+
+  // 确保编辑器获得焦点时有明显反馈
+  :deep(.ql-container:focus-within) {
+    outline: 2px solid #667eea;
+    outline-offset: -2px;
   }
 }
 
