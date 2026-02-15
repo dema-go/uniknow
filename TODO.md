@@ -16,3 +16,8 @@
     - [x] 集成 Elasticsearch 全文检索
     - [x] 集成 Neo4j 图谱检索
     - [x] 实现多路检索 + Rerank
+
+- [x] 案例模版点击后没有反应，并没有出现模版的选项
+    - **原因**: Docker 容器中的前端代码是旧版本，未包含 EditorSidebar 组件
+    - **解决**: 重新构建前端 Docker 镜像 (`docker-compose build frontend`)
+- [ ] 参考WeKnora项目可以区分出案例形式，大体分为两种：FAQ和文档。文档可以存到MinIO上。WeKnora的代码在～/WeKnora中，可以参考
