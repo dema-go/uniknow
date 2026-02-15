@@ -32,6 +32,18 @@ class Settings(BaseSettings):
     RERANK_DEVICE: str = "cpu"  # 或 "cuda" / "mps"
     RERANK_ENABLED: bool = True
 
+    # Elasticsearch 配置
+    ES_HOST: str = "localhost"
+    ES_PORT: int = 9200
+    ES_INDEX: str = "cases"
+    ES_ENABLED: bool = True
+
+    # Neo4j 配置
+    NEO4J_URI: str = "bolt://localhost:7688"
+    NEO4J_USER: str = "neo4j"
+    NEO4J_PASSWORD: str = "uniknow123"
+    NEO4J_ENABLED: bool = True
+
     # JWT配置
     SECRET_KEY: str = Field(default="your-secret-key-change-in-production", description="JWT密钥")
     JWT_ALGORITHM: str = "HS256"

@@ -5,13 +5,16 @@ from app.models.database import CaseStatus
 from app.tools.embedding import EmbeddingService
 from app.services.milvus_service import get_milvus_service, MilvusService
 from app.services.rerank_service import get_rerank_service, get_simple_rerank_service
+from app.services.es_service import get_es_service, ElasticsearchService
+from app.services.neo4j_service import get_neo4j_service, Neo4jService
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
 
 class SearchService:
-    """混合搜索服务 - 结合关键词搜索、向量搜索和 Rerank"""
+    """多路检索服务 - 结合 ES、向量、图谱搜索和 Rerank"""
 
     def __init__(self):
         self.embedding_service = EmbeddingService()
@@ -19,10 +22,12 @@ class SearchService:
         self.db = self.client[settings.DATABASE_NAME]
         self.collection = self.db["cases"]
         self._milvus_service: Optional[MilvusService] = None
+        self._es_service: Optional[ElasticsearchService] = None
+        self._neo4j_service: Optional[Neo4jService] = None
         self._rerank_enabled = settings.RERANK_ENABLED
 
     @property
-    def milvus_service(self) -> MilvusService:
+    def milvus_service(self) -> Optional[MilvusService]:
         """延迟获取 Milvus 服务"""
         if self._milvus_service is None:
             try:
@@ -30,6 +35,26 @@ class SearchService:
             except Exception as e:
                 logger.warning(f"Failed to get Milvus service: {e}")
         return self._milvus_service
+
+    @property
+    def es_service(self) -> Optional[ElasticsearchService]:
+        """延迟获取 ES 服务"""
+        if self._es_service is None:
+            try:
+                self._es_service = get_es_service()
+            except Exception as e:
+                logger.warning(f"Failed to get ES service: {e}")
+        return self._es_service
+
+    @property
+    def neo4j_service(self) -> Optional[Neo4jService]:
+        """延迟获取 Neo4j 服务"""
+        if self._neo4j_service is None:
+            try:
+                self._neo4j_service = get_neo4j_service()
+            except Exception as e:
+                logger.warning(f"Failed to get Neo4j service: {e}")
+        return self._neo4j_service
 
     async def search_cases(
         self,
@@ -42,25 +67,30 @@ class SearchService:
         page_size: int = 20
     ) -> dict:
         """
-        混合搜索案例
-        结合关键词搜索、向量搜索，并使用 Rerank 重排序
+        多路检索案例
+        结合 ES 全文检索、向量检索、图谱检索，并使用 Rerank 重排序
         """
-        # 1. 并行执行关键词搜索和向量搜索
-        keyword_results = []
+        # 并行执行多路检索
+        es_results = []
         vector_results = []
+        graph_results = []
 
-        # 关键词搜索
-        filter_conditions = self._build_filter_conditions(
-            tenant_id, category_id, case_type, tags
-        )
+        # 1. Elasticsearch 全文检索
+        if self.es_service and settings.ES_ENABLED:
+            try:
+                es_results = await self.es_service.search(
+                    query=query,
+                    tenant_id=tenant_id,
+                    top_k=50,
+                    case_type=case_type,
+                    category_id=category_id,
+                    tags=tags
+                )
+            except Exception as e:
+                logger.warning(f"ES search failed: {e}")
 
-        # 执行关键词搜索
-        keyword_results = await self._keyword_search_all(
-            query, filter_conditions, limit=50
-        )
-
-        # 2. 向量搜索（如果 Milvus 可用）
-        if self.milvus_service:
+        # 2. Milvus 向量搜索
+        if self.milvus_service and query:
             try:
                 query_vector = await self.embedding_service.embed_query(query)
                 vector_results = await self.milvus_service.search_similar(
@@ -73,10 +103,39 @@ class SearchService:
             except Exception as e:
                 logger.warning(f"Vector search failed: {e}")
 
-        # 3. 合并结果（去重）
-        merged_results = self._merge_results(keyword_results, vector_results)
+        # 3. Neo4j 图谱检索
+        if self.neo4j_service and settings.NEO4J_ENABLED:
+            try:
+                if tags:
+                    # 如果有标签，通过标签搜索
+                    graph_results = await self.neo4j_service.search_by_tags(
+                        tags=tags,
+                        tenant_id=tenant_id,
+                        top_k=30
+                    )
+                elif query:
+                    # 否则从查询中提取关键词搜索
+                    graph_results = await self.neo4j_service.extract_keywords_and_search(
+                        query=query,
+                        tenant_id=tenant_id,
+                        top_k=30
+                    )
+            except Exception as e:
+                logger.warning(f"Graph search failed: {e}")
 
-        # 4. Rerank 重排序
+        # 4. 合并结果（去重）
+        merged_results = self._merge_results(es_results, vector_results, graph_results)
+
+        # 5. 如果所有检索都失败，回退到 MongoDB 关键词搜索
+        if not merged_results:
+            filter_conditions = self._build_filter_conditions(
+                tenant_id, category_id, case_type, tags
+            )
+            merged_results = await self._keyword_search_all(
+                query, filter_conditions, limit=50
+            )
+
+        # 6. Rerank 重排序
         if merged_results:
             try:
                 if self._rerank_enabled:
@@ -87,7 +146,6 @@ class SearchService:
                         top_k=min(100, len(merged_results))
                     )
                 else:
-                    # 使用简单重排序作为后备
                     simple_rerank = get_simple_rerank_service()
                     reranked_results = await simple_rerank.rerank(
                         query=query,
@@ -100,7 +158,7 @@ class SearchService:
         else:
             reranked_results = []
 
-        # 5. 分页返回
+        # 7. 分页返回
         total = len(reranked_results)
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
@@ -140,8 +198,7 @@ class SearchService:
         filters: dict,
         limit: int = 50
     ) -> List[Dict[str, Any]]:
-        """关键词搜索（返回所有匹配结果，不分页）"""
-        # 构建搜索查询
+        """MongoDB 关键词搜索（回退方案）"""
         if query and query.strip():
             search_query = {
                 **filters,
@@ -158,34 +215,67 @@ class SearchService:
         items = []
         async for doc in cursor:
             doc["id"] = str(doc.pop("_id"))
-            doc["source"] = "keyword"
+            doc["source"] = "mongodb"
             items.append(doc)
 
         return items
 
     def _merge_results(
         self,
-        keyword_results: List[Dict[str, Any]],
-        vector_results: List[Dict[str, Any]]
+        es_results: List[Dict[str, Any]],
+        vector_results: List[Dict[str, Any]],
+        graph_results: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """合并关键词和向量搜索结果（去重）"""
-        # 使用 case_id 作为唯一标识
+        """合并多路检索结果（去重并计算综合分数）"""
         seen_ids = set()
         merged = []
+        doc_scores = {}
 
-        # 优先添加向量搜索结果（通常更相关）
+        # 收集所有文档和分数
+        for item in es_results:
+            case_id = item.get("case_id") or item.get("id")
+            if case_id:
+                doc_scores[case_id] = doc_scores.get(case_id, {})
+                doc_scores[case_id]["es"] = item.get("score", 1.0)
+                if case_id not in seen_ids:
+                    seen_ids.add(case_id)
+                    merged.append(item)
+
         for item in vector_results:
             case_id = item.get("case_id") or item.get("id")
-            if case_id and case_id not in seen_ids:
-                seen_ids.add(case_id)
-                merged.append(item)
+            if case_id:
+                doc_scores[case_id] = doc_scores.get(case_id, {})
+                doc_scores[case_id]["vector"] = item.get("score", 1.0)
+                if case_id not in seen_ids:
+                    seen_ids.add(case_id)
+                    merged.append(item)
 
-        # 添加关键词搜索结果中的唯一项
-        for item in keyword_results:
-            case_id = item.get("id") or item.get("case_id")
-            if case_id and case_id not in seen_ids:
-                seen_ids.add(case_id)
-                merged.append(item)
+        for item in graph_results:
+            case_id = item.get("case_id") or item.get("id")
+            if case_id:
+                doc_scores[case_id] = doc_scores.get(case_id, {})
+                doc_scores[case_id]["graph"] = item.get("score", 1.0)
+                if case_id not in seen_ids:
+                    seen_ids.add(case_id)
+                    merged.append(item)
+
+        # 计算综合分数（加权平均）
+        for item in merged:
+            case_id = item.get("case_id") or item.get("id")
+            if case_id and case_id in doc_scores:
+                scores = doc_scores[case_id]
+                # 综合分数 = 0.4 * ES + 0.4 * Vector + 0.2 * Graph
+                combined_score = 0.0
+                if "es" in scores:
+                    combined_score += 0.4 * scores["es"]
+                if "vector" in scores:
+                    combined_score += 0.4 * scores["vector"]
+                if "graph" in scores:
+                    combined_score += 0.2 * scores["graph"]
+                item["combined_score"] = combined_score
+
+        # 按综合分数排序
+        merged.sort(key=lambda x: x.get("combined_score", 0), reverse=True)
 
         return merged
 
@@ -231,4 +321,26 @@ class SearchService:
             return results
         except Exception as e:
             logger.error(f"Vector only search failed: {e}")
+            return []
+
+    async def get_related_cases(
+        self,
+        case_id: str,
+        tenant_id: str,
+        top_k: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        获取相关案例（基于图谱关系）
+        """
+        if not self.neo4j_service:
+            return []
+
+        try:
+            return await self.neo4j_service.search_related_cases(
+                case_id=case_id,
+                tenant_id=tenant_id,
+                top_k=top_k
+            )
+        except Exception as e:
+            logger.error(f"Get related cases failed: {e}")
             return []

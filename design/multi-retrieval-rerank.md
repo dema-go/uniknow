@@ -2,7 +2,7 @@
 
 ## 概述
 
-本设计文档描述了 UniKnow 案例管理系统的多路检索系统实现，结合向量检索、关键词搜索和 Rerank 重排序，提升搜索效果。
+本设计文档描述了 UniKnow 案例管理系统的多路检索系统实现，结合 ES 全文检索、向量检索、图谱检索和 Rerank 重排序，提升搜索效果。
 
 ## 架构
 
@@ -14,25 +14,26 @@
                       ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    SearchService                             │
-│  ┌─────────────────┐  ┌─────────────────┐                  │
-│  │   关键词搜索     │  │    向量搜索     │                  │
-│  │   (MongoDB)     │  │    (Milvus)     │                  │
-│  └────────┬────────┘  └────────┬────────┘                  │
-│           │                    │                            │
-│           └────────┬───────────┘                            │
-│                    ▼                                        │
-│           ┌────────────────┐                                │
-│           │   结果合并去重   │                                │
-│           └────────┬───────┘                                │
-│                    ▼                                        │
-│           ┌────────────────┐                                │
-│           │ Rerank 重排序   │                                │
-│           │ (BGE-Reranker) │                                │
-│           └────────┬───────┘                                │
-│                    ▼                                        │
-│           ┌────────────────┐                                │
-│           │    分页返回     │                                │
-│           └────────────────┘                                │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
+│  │  ES 全文检索 │  │  向量搜索   │  │  图谱检索   │         │
+│  │(Elasticsearch)│ │  (Milvus)  │  │  (Neo4j)   │         │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘         │
+│         │                │                │                 │
+│         └────────────────┼────────────────┘                 │
+│                          ▼                                  │
+│                 ┌────────────────┐                          │
+│                 │   结果合并去重   │                          │
+│                 │  (加权融合分数)  │                          │
+│                 └────────┬───────┘                          │
+│                          ▼                                  │
+│                 ┌────────────────┐                          │
+│                 │ Rerank 重排序   │                          │
+│                 │ (BGE-Reranker) │                          │
+│                 └────────┬───────┘                          │
+│                          ▼                                  │
+│                 ┌────────────────┐                          │
+│                 │    分页返回     │                          │
+│                 └────────────────┘                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -48,21 +49,25 @@
 - CRUD 操作
 - 向量相似度搜索
 
-**集合结构**:
-```python
-fields = [
-    FieldSchema(name="id", dtype=VARCHAR, max_length=100, is_primary=True),
-    FieldSchema(name="case_id", dtype=VARCHAR, max_length=100),
-    FieldSchema(name="tenant_id", dtype=VARCHAR, max_length=100),
-    FieldSchema(name="title", dtype=VARCHAR, max_length=500),
-    FieldSchema(name="content", dtype=VARCHAR, max_length=8000),
-    FieldSchema(name="case_type", dtype=VARCHAR, max_length=50),
-    FieldSchema(name="category_id", dtype=VARCHAR, max_length=100),
-    FieldSchema(name="embedding", dtype=FLOAT_VECTOR, dim=1024),
-]
-```
+### 2. ElasticsearchService (全文检索服务)
 
-### 2. RerankService (重排序服务)
+**文件**: `backend/app/services/es_service.py`
+
+**功能**:
+- 索引管理
+- 文档索引/更新/删除
+- 全文搜索（支持 ik 中文分词）
+
+### 3. Neo4jService (图谱服务)
+
+**文件**: `backend/app/services/neo4j_service.py`
+
+**功能**:
+- 图节点管理（案例、标签、分类）
+- 关系管理（案例-标签、案例-分类）
+- 基于关系的检索
+
+### 4. RerankService (重排序服务)
 
 **文件**: `backend/app/services/rerank_service.py`
 
@@ -71,44 +76,35 @@ fields = [
 - 对搜索结果进行重排序
 - 提供简单规则重排序作为后备
 
-**模型**:
-- BGE-Reranker-v2-m3：多语言支持，适合中英文场景
-- 运行设备：CPU（可配置为 CUDA/MPS）
-
-### 3. SearchService (混合搜索服务)
+### 5. SearchService (多路检索服务)
 
 **文件**: `backend/app/services/search_service.py`
 
 **搜索流程**:
-1. 关键词搜索（MongoDB 正则匹配）
-2. 向量搜索（Milvus 余弦相似度）
-3. 结果合并去重
-4. Rerank 重排序
-5. 分页返回
+1. 并行执行三路检索（ES、向量、图谱）
+2. 结果合并去重
+3. Rerank 重排序
+4. 分页返回
 
-### 4. CaseService (案例服务 - 集成向量同步)
+### 6. CaseService (案例服务 - 多数据源同步)
 
 **文件**: `backend/app/services/case_service.py`
 
-**向量同步逻辑**:
-- 创建已发布案例时：自动向量化并存储到 Milvus
-- 更新已发布案例时：更新 Milvus 中的向量
-- 删除案例时：从 Milvus 删除向量
-- 发布案例时：向量化并存储
-- 取消发布时：从 Milvus 删除
+**同步逻辑**:
+- 创建/更新已发布案例时：同步到 Milvus、ES、Neo4j
+- 删除案例时：从所有数据源删除
+- 发布/取消发布时：同步/删除数据
 
 ## Docker 服务
 
 **文件**: `docker-compose.yml`
 
-新增服务:
+服务列表:
 - `etcd`: Milvus 元数据存储
 - `minio`: Milvus 对象存储
 - `milvus`: 向量数据库
-
-端口映射:
-- Milvus: 19530 (gRPC), 9091 (健康检查)
-- Minio: 9000 (API), 9001 (控制台)
+- `elasticsearch`: 全文检索引擎
+- `neo4j`: 图数据库
 
 ## 配置
 
@@ -125,56 +121,64 @@ RERANK_MODEL: str = "BAAI/bge-reranker-v2-m3"
 RERANK_DEVICE: str = "cpu"
 RERANK_ENABLED: bool = True
 
+# Elasticsearch 配置
+ES_HOST: str = "localhost"
+ES_PORT: int = 9200
+ES_INDEX: str = "cases"
+ES_ENABLED: bool = True
+
+# Neo4j 配置
+NEO4J_URI: str = "bolt://localhost:7687"
+NEO4J_USER: str = "neo4j"
+NEO4J_PASSWORD: str = "uniknow123"
+NEO4J_ENABLED: bool = True
+
 # 向量维度
 EMBEDDING_DIMENSION: int = 1024
-```
-
-## 数据迁移
-
-**脚本**: `backend/scripts/migrate_to_milvus.py`
-
-使用方法:
-```bash
-cd backend
-source .venv/bin/activate
-python scripts/migrate_to_milvus.py --tenant-id default --batch-size 10
 ```
 
 ## 依赖
 
 **文件**: `backend/requirements.txt`
 
-新增:
 - `pymilvus==2.3.3`: Milvus Python SDK
 - `transformers==4.36.2`: HuggingFace Transformers
 - `torch==2.1.2`: PyTorch
+- `elasticsearch==8.11.0`: Elasticsearch Python SDK
+- `neo4j==5.15.0`: Neo4j Python Driver
 
-## 后续扩展
+## 使用方法
 
-### 阶段 2: Elasticsearch
+```bash
+# 1. 启动所有服务
+docker-compose up -d
 
-- 添加 ES 服务
-- 实现全文检索
-- 数据同步逻辑
+# 2. 安装依赖
+cd backend && uv sync
 
-### 阶段 3: Neo4j 图谱
+# 3. 运行数据迁移（可选）
+source .venv/bin/activate
+python scripts/migrate_to_milvus.py
 
-- 添加 Neo4j 服务
-- 实现图谱构建
-- 图谱检索逻辑
+# 4. 启动后端
+uvicorn app.main:app --reload --port 8000
+```
+
+## 检索策略
+
+### 综合分数计算
+
+```
+combined_score = 0.4 * ES_score + 0.4 * Vector_score + 0.2 * Graph_score
+```
+
+### 回退策略
+
+当所有检索服务不可用时，回退到 MongoDB 关键词搜索。
 
 ## 验证方案
 
-1. 启动服务:
-   ```bash
-   docker-compose up -d etcd minio milvus
-   ```
-
-2. 运行迁移脚本:
-   ```bash
-   python scripts/migrate_to_milvus.py
-   ```
-
-3. 测试搜索接口:
-   - 验证向量搜索返回相关结果
-   - 验证 Rerank 后结果排序更合理
+1. 启动服务: `docker-compose up -d`
+2. 检查服务健康状态
+3. 测试搜索接口
+4. 验证 Rerank 效果

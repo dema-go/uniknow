@@ -85,6 +85,48 @@ services:
       retries: 3
     command: ["milvus", "run", "standalone"]
 
+  # Elasticsearch 全文检索
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: uniknow-elasticsearch
+    restart: unless-stopped
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # Neo4j 图数据库
+  neo4j:
+    image: neo4j:5.15.0
+    container_name: uniknow-neo4j
+    restart: unless-stopped
+    ports:
+      - "7475:7474"
+      - "7688:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/uniknow123
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=512m
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
   # 后端服务
   backend:
     build:
@@ -119,3 +161,6 @@ volumes:
   etcd_data:
   minio_data:
   milvus_data:
+  elasticsearch_data:
+  neo4j_data:
+  neo4j_logs:
