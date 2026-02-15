@@ -20,6 +20,17 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "qwen-plus"
     OPENAI_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     EMBEDDING_MODEL: str = "text-embedding-v2"
+    EMBEDDING_DIMENSION: int = 1024  # text-embedding-v2 向量维度
+
+    # Milvus 向量数据库配置
+    MILVUS_HOST: str = "localhost"
+    MILVUS_PORT: int = 19530
+    MILVUS_COLLECTION: str = "cases"
+
+    # Rerank 配置
+    RERANK_MODEL: str = "BAAI/bge-reranker-v2-m3"
+    RERANK_DEVICE: str = "cpu"  # 或 "cuda" / "mps"
+    RERANK_ENABLED: bool = True
 
     # JWT配置
     SECRET_KEY: str = Field(default="your-secret-key-change-in-production", description="JWT密钥")
