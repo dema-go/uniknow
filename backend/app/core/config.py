@@ -32,10 +32,10 @@ class Settings(BaseSettings):
     RERANK_DEVICE: str = "cpu"  # 或 "cuda" / "mps"
     RERANK_ENABLED: bool = True
 
-    # 智谱 Rerank 配置（优先使用）
-    ZHIPU_API_KEY: str = Field(default="", description="智谱AI API Key")
-    ZHIPU_RERANK_MODEL: str = "glm-rerank"  # 可选: glm-rerank, glm-rerank-pro
-    ZHIPU_RERANK_ENABLED: bool = True  # 是否启用智谱 Rerank
+    # DashScope Rerank 配置（优先使用）
+    # 使用 OPENAI_API_KEY 作为 DashScope API Key
+    DASHSCOPE_RERANK_MODEL: str = "qwen3-rerank"  # 可选: qwen3-rerank, gte-rerank-v2
+    DASHSCOPE_RERANK_ENABLED: bool = True  # 是否启用 DashScope Rerank
 
     # Elasticsearch 配置
     ES_HOST: str = "localhost"

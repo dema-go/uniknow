@@ -17,29 +17,13 @@ def async_wrapper(func):
     return wrapper
 
 
-class ZhipuRerankService:
-    """智谱 AI Rerank 服务"""
+class DashScopeRerankService:
+    """阿里云 DashScope Rerank 服务"""
 
     def __init__(self):
-        self.api_key = settings.ZHIPU_API_KEY
-        self.model = settings.ZHIPU_RERANK_MODEL
-        self.enabled = settings.ZHIPU_RERANK_ENABLED and bool(self.api_key)
-        self._client = None
-
-    def _get_client(self):
-        """延迟初始化客户端"""
-        if self._client is None and self.enabled:
-            try:
-                from zhipuai import ZhipuAI
-                self._client = ZhipuAI(api_key=self.api_key)
-                logger.info(f"智谱 Rerank 客户端初始化成功，模型: {self.model}")
-            except ImportError:
-                logger.warning("zhipuai SDK 未安装，请运行: pip install zhipuai")
-                self.enabled = False
-            except Exception as e:
-                logger.error(f"智谱 Rerank 客户端初始化失败: {e}")
-                self.enabled = False
-        return self._client
+        self.api_key = settings.OPENAI_API_KEY  # 使用 DashScope API Key
+        self.model = settings.DASHSCOPE_RERANK_MODEL
+        self.enabled = settings.DASHSCOPE_RERANK_ENABLED and bool(self.api_key)
 
     async def rerank(
         self,
@@ -48,7 +32,7 @@ class ZhipuRerankService:
         top_k: int = 10
     ) -> List[Dict[str, Any]]:
         """
-        使用智谱 API 对文档进行重排序
+        使用 DashScope API 对文档进行重排序
 
         Args:
             query: 查询文本
@@ -59,56 +43,140 @@ class ZhipuRerankService:
             重排序后的文档列表，按相关性降序排列
         """
         if not self.enabled:
-            logger.debug("智谱 Rerank 未启用")
+            logger.debug("DashScope Rerank 未启用")
             return []
 
         if not documents:
             return []
 
         try:
-            client = self._get_client()
-            if client is None:
+            # 尝试使用 DashScope SDK
+            try:
+                import dashscope
+                from http import HTTPStatus
+
+                # 构造文档文本列表
+                doc_texts = []
+                for doc in documents:
+                    title = doc.get("title", "")
+                    content = doc.get("content", "")
+                    if title and content:
+                        doc_texts.append(f"{title}\n{content[:500]}")
+                    elif content:
+                        doc_texts.append(content[:500])
+                    else:
+                        doc_texts.append(title)
+
+                # 调用 DashScope Rerank API
+                def _call_rerank():
+                    dashscope.api_key = self.api_key
+                    return dashscope.TextReRank.call(
+                        model=self.model,
+                        query=query,
+                        documents=doc_texts,
+                        top_n=min(top_k, len(doc_texts)),
+                        return_documents=False
+                    )
+
+                response = await async_wrapper(_call_rerank)()
+
+                if response.status_code != HTTPStatus.OK:
+                    logger.error(f"DashScope Rerank API 调用失败: {response.code} - {response.message}")
+                    return []
+
+                # 构建结果列表
+                results = []
+                for result in response.output["results"]:
+                    idx = result["index"]
+                    if 0 <= idx < len(documents):
+                        reranked_doc = documents[idx].copy()
+                        reranked_doc["rerank_score"] = result["relevance_score"]
+                        reranked_doc["rerank_source"] = "dashscope"
+                        results.append(reranked_doc)
+
+                logger.info(f"DashScope Rerank 完成，处理 {len(documents)} 个文档，返回 {len(results)} 个")
+                return results
+
+            except ImportError:
+                logger.warning("dashscope SDK 未安装，尝试使用 HTTP API")
+                return await self._rerank_via_http(query, documents, top_k)
+
+        except Exception as e:
+            logger.error(f"DashScope Rerank 调用失败: {e}")
+            return []
+
+    async def _rerank_via_http(
+        self,
+        query: str,
+        documents: List[Dict[str, Any]],
+        top_k: int = 10
+    ) -> List[Dict[str, Any]]:
+        """通过 HTTP API 调用 DashScope Rerank"""
+        import httpx
+
+        # 构造文档文本列表
+        doc_texts = []
+        for doc in documents:
+            title = doc.get("title", "")
+            content = doc.get("content", "")
+            if title and content:
+                doc_texts.append(f"{title}\n{content[:500]}")
+            elif content:
+                doc_texts.append(content[:500])
+            else:
+                doc_texts.append(title)
+
+        # 根据模型选择不同的 API 端点
+        if self.model == "qwen3-rerank":
+            url = "https://dashscope.aliyuncs.com/compatible-api/v1/reranks"
+            payload = {
+                "model": self.model,
+                "query": query,
+                "documents": doc_texts,
+                "top_n": min(top_k, len(doc_texts)),
+                "instruct": "Given a web search query, retrieve relevant passages that answer the query."
+            }
+        else:
+            # gte-rerank-v2 或其他模型
+            url = "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank"
+            payload = {
+                "model": self.model,
+                "input": {
+                    "query": query,
+                    "documents": doc_texts
+                },
+                "parameters": {
+                    "return_documents": False,
+                    "top_n": min(top_k, len(doc_texts))
+                }
+            }
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(url, json=payload, headers=headers)
+
+            if response.status_code != 200:
+                logger.error(f"DashScope Rerank HTTP API 调用失败: {response.status_code} - {response.text}")
                 return []
 
-            # 构造文档文本列表
-            doc_texts = []
-            for doc in documents:
-                title = doc.get("title", "")
-                content = doc.get("content", "")
-                if title and content:
-                    doc_texts.append(f"{title}\n{content[:500]}")
-                elif content:
-                    doc_texts.append(content[:500])
-                else:
-                    doc_texts.append(title)
-
-            # 调用智谱 Rerank API
-            def _call_rerank():
-                return client.rerank(
-                    model=self.model,
-                    query=query,
-                    documents=doc_texts,
-                    top_n=min(top_k, len(doc_texts))
-                )
-
-            response = await async_wrapper(_call_rerank)()
+            data = response.json()
 
             # 构建结果列表
             results = []
-            for result in response.results:
-                idx = result.index
+            for result in data.get("output", {}).get("results", []):
+                idx = result["index"]
                 if 0 <= idx < len(documents):
                     reranked_doc = documents[idx].copy()
-                    reranked_doc["rerank_score"] = result.relevance_score
-                    reranked_doc["rerank_source"] = "zhipu"
+                    reranked_doc["rerank_score"] = result["relevance_score"]
+                    reranked_doc["rerank_source"] = "dashscope"
                     results.append(reranked_doc)
 
-            logger.info(f"智谱 Rerank 完成，处理 {len(documents)} 个文档，返回 {len(results)} 个")
+            logger.info(f"DashScope Rerank (HTTP) 完成，处理 {len(documents)} 个文档，返回 {len(results)} 个")
             return results
-
-        except Exception as e:
-            logger.error(f"智谱 Rerank 调用失败: {e}")
-            return []
 
 
 class BgeRerankService:
@@ -304,11 +372,11 @@ class SimpleRerankService:
 class HybridRerankService:
     """
     混合 Rerank 服务
-    优先使用智谱 Rerank，失败时使用本地 BGE Rerank 兜底
+    优先使用 DashScope Rerank，失败时使用本地 BGE Rerank 兜底
     """
 
     def __init__(self):
-        self._zhipu_service = ZhipuRerankService()
+        self._dashscope_service = DashScopeRerankService()
         self._bge_service = BgeRerankService()
         self._simple_service = SimpleRerankService()
 
@@ -322,7 +390,7 @@ class HybridRerankService:
         对文档进行重排序
 
         优先级：
-        1. 智谱 Rerank（如果启用且有 API Key）
+        1. DashScope Rerank（如果启用且有 API Key）
         2. 本地 BGE Rerank（作为兜底）
         3. 简单规则 Rerank（最终兜底）
 
@@ -337,15 +405,15 @@ class HybridRerankService:
         if not documents:
             return []
 
-        # 1. 尝试使用智谱 Rerank
-        if self._zhipu_service.enabled:
+        # 1. 尝试使用 DashScope Rerank
+        if self._dashscope_service.enabled:
             try:
-                results = await self._zhipu_service.rerank(query, documents, top_k)
+                results = await self._dashscope_service.rerank(query, documents, top_k)
                 if results:
-                    logger.info("使用智谱 Rerank 成功")
+                    logger.info("使用 DashScope Rerank 成功")
                     return results
             except Exception as e:
-                logger.warning(f"智谱 Rerank 失败，切换到兜底方案: {e}")
+                logger.warning(f"DashScope Rerank 失败，切换到兜底方案: {e}")
 
         # 2. 尝试使用本地 BGE Rerank
         if self._bge_service.enabled:

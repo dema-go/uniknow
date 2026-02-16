@@ -31,13 +31,13 @@
         - 案例详情页支持文档下载
         - 案例列表页支持形式筛选
 
-- [x] 重排序换成智谱的rerank模型，可以上网查找对应的文档，当前使用的模型可以作为智谱rerank失效时的兜底方案
+- [x] 重排序换成阿里云 DashScope 的 Rerank 模型，当前使用的 BGE 模型可以作为兜底方案
     - **实现**:
-        - 新增 `ZhipuRerankService` 类，使用智谱 AI GLM-rerank 模型
-        - 新增 `HybridRerankService` 混合服务，优先级：智谱 > 本地 BGE > 简单规则
-        - 更新配置项：`ZHIPU_API_KEY`、`ZHIPU_RERANK_MODEL`、`ZHIPU_RERANK_ENABLED`
-        - 添加 zhipuai SDK 依赖
-    - **注意**: 需要在 `.env` 中配置 `ZHIPU_API_KEY` 才能启用智谱 Rerank
+        - 新增 `DashScopeRerankService` 类，使用阿里云 DashScope qwen3-rerank 模型
+        - 新增 `HybridRerankService` 混合服务，优先级：DashScope > 本地 BGE > 简单规则
+        - 更新配置项：`DASHSCOPE_RERANK_MODEL`、`DASHSCOPE_RERANK_ENABLED`
+        - 添加 dashscope SDK 依赖
+    - **注意**: 使用 `.env` 中的 `OPENAI_API_KEY` 作为 DashScope API Key
 - [x] ES 连接错误: 后端无法连接到 Elasticsearch（localhost:9200），排查并修复问题，我在docker中看到es是正常启动的
     - **原因**: elasticsearch Python 客户端 9.x 与服务端 8.x 版本不兼容
     - **解决**: 降级 elasticsearch 客户端到 8.x 版本（8.19.3）
