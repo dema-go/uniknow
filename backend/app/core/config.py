@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = Field(..., description="OpenAI API Key")
     OPENAI_MODEL: str = "qwen-plus"
     OPENAI_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    EMBEDDING_MODEL: str = "text-embedding-v2"
-    EMBEDDING_DIMENSION: int = 1024  # text-embedding-v2 向量维度
+    EMBEDDING_MODEL: str = "text-embedding-v3"
+    EMBEDDING_DIMENSION: int = 1024  # text-embedding-v3 向量维度（支持 1024/768）
 
     # Milvus 向量数据库配置
     MILVUS_HOST: str = "localhost"

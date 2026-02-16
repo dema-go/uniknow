@@ -42,4 +42,7 @@
     - **原因**: elasticsearch Python 客户端 9.x 与服务端 8.x 版本不兼容
     - **解决**: 降级 elasticsearch 客户端到 8.x 版本（8.19.3）
     - **修复**: 更新 es_service.py API 调用，适配 elasticsearch 8.x 的参数格式
-- [ ] Milvus API Key 错误: OpenAI API Key 配置问题，将milvus改造为使用阿里云的apikey，apikey在.env中
+- [x] Milvus API Key 错误: OpenAI API Key 配置问题，将milvus改造为使用阿里云的apikey，apikey在.env中
+    - **解决**: 已使用阿里云 DashScope 的 OpenAI 兼容模式（OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1）
+    - **修复**: 更新 EMBEDDING_MODEL 为 text-embedding-v3，维度为 1024
+    - **验证**: Milvus 向量插入和搜索功能正常工作
