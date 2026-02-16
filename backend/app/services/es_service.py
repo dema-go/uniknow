@@ -25,9 +25,10 @@ class ElasticsearchService:
 
         if self._client is None:
             try:
+                # elasticsearch 9.x 使用 request_timeout 替代 timeout
                 self._client = AsyncElasticsearch(
                     hosts=[f"http://{self.host}:{self.port}"],
-                    timeout=30,
+                    request_timeout=30,
                     max_retries=3,
                     retry_on_timeout=True
                 )
@@ -59,36 +60,40 @@ class ElasticsearchService:
                 return True
 
             # 定义索引映射
-            mapping = {
-                "mappings": {
-                    "properties": {
-                        "case_id": {"type": "keyword"},
-                        "tenant_id": {"type": "keyword"},
-                        "title": {
-                            "type": "text",
-                            "analyzer": "ik_max_word",
-                            "search_analyzer": "ik_smart"
-                        },
-                        "content": {
-                            "type": "text",
-                            "analyzer": "ik_max_word",
-                            "search_analyzer": "ik_smart"
-                        },
-                        "case_type": {"type": "keyword"},
-                        "category_id": {"type": "keyword"},
-                        "tags": {"type": "keyword"},
-                        "status": {"type": "keyword"},
-                        "created_at": {"type": "date"},
-                        "updated_at": {"type": "date"}
-                    }
-                },
-                "settings": {
-                    "number_of_shards": 1,
-                    "number_of_replicas": 0
+            # 注意：如果 ES 安装了 IK 分词器插件，可以使用 ik_max_word/ik_smart
+            # 这里使用标准分词器作为默认，确保兼容性
+            mappings = {
+                "properties": {
+                    "case_id": {"type": "keyword"},
+                    "tenant_id": {"type": "keyword"},
+                    "title": {
+                        "type": "text",
+                        "analyzer": "standard"
+                    },
+                    "content": {
+                        "type": "text",
+                        "analyzer": "standard"
+                    },
+                    "case_type": {"type": "keyword"},
+                    "category_id": {"type": "keyword"},
+                    "tags": {"type": "keyword"},
+                    "status": {"type": "keyword"},
+                    "created_at": {"type": "date"},
+                    "updated_at": {"type": "date"}
                 }
             }
 
-            await client.indices.create(index=self.index_name, body=mapping)
+            settings_body = {
+                "number_of_shards": 1,
+                "number_of_replicas": 0
+            }
+
+            # elasticsearch 9.x 使用命名参数
+            await client.indices.create(
+                index=self.index_name,
+                mappings=mappings,
+                settings=settings_body
+            )
             logger.info(f"Created index {self.index_name}")
             return True
         except Exception as e:
@@ -195,37 +200,39 @@ class ElasticsearchService:
             if tags:
                 must_conditions.append({"terms": {"tags": tags}})
 
-            # 构建搜索体
-            search_body = {
-                "query": {
-                    "bool": {
-                        "must": must_conditions,
-                        "should": [
-                            {
-                                "match": {
-                                    "title": {
-                                        "query": query,
-                                        "boost": 2.0
-                                    }
-                                }
-                            },
-                            {
-                                "match": {
-                                    "content": {
-                                        "query": query,
-                                        "boost": 1.0
-                                    }
+            # 构建查询体
+            query_body = {
+                "bool": {
+                    "must": must_conditions,
+                    "should": [
+                        {
+                            "match": {
+                                "title": {
+                                    "query": query,
+                                    "boost": 2.0
                                 }
                             }
-                        ],
-                        "minimum_should_match": 1 if query else 0
-                    }
-                },
-                "size": top_k,
-                "_source": ["case_id", "tenant_id", "title", "content", "case_type", "category_id", "tags"]
+                        },
+                        {
+                            "match": {
+                                "content": {
+                                    "query": query,
+                                    "boost": 1.0
+                                }
+                            }
+                        }
+                    ],
+                    "minimum_should_match": 1 if query else 0
+                }
             }
 
-            response = await client.search(index=self.index_name, body=search_body)
+            # elasticsearch 9.x 使用命名参数
+            response = await client.search(
+                index=self.index_name,
+                query=query_body,
+                size=top_k,
+                source=["case_id", "tenant_id", "title", "content", "case_type", "category_id", "tags"]
+            )
 
             # 解析结果
             results = []

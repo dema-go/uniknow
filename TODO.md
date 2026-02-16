@@ -38,5 +38,8 @@
         - 更新配置项：`ZHIPU_API_KEY`、`ZHIPU_RERANK_MODEL`、`ZHIPU_RERANK_ENABLED`
         - 添加 zhipuai SDK 依赖
     - **注意**: 需要在 `.env` 中配置 `ZHIPU_API_KEY` 才能启用智谱 Rerank
-- [ ] ES 连接错误: 后端无法连接到 Elasticsearch（localhost:9200），排查并修复问题，我在docker中看到es是正常启动的
+- [x] ES 连接错误: 后端无法连接到 Elasticsearch（localhost:9200），排查并修复问题，我在docker中看到es是正常启动的
+    - **原因**: elasticsearch Python 客户端 9.x 与服务端 8.x 版本不兼容
+    - **解决**: 降级 elasticsearch 客户端到 8.x 版本（8.19.3）
+    - **修复**: 更新 es_service.py API 调用，适配 elasticsearch 8.x 的参数格式
 - [ ] Milvus API Key 错误: OpenAI API Key 配置问题，将milvus改造为使用阿里云的apikey，apikey在.env中
