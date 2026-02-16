@@ -17,8 +17,102 @@ def async_wrapper(func):
     return wrapper
 
 
-class RerankService:
-    """Rerank 重排序服务 - 使用 BGE-Reranker 模型"""
+class ZhipuRerankService:
+    """智谱 AI Rerank 服务"""
+
+    def __init__(self):
+        self.api_key = settings.ZHIPU_API_KEY
+        self.model = settings.ZHIPU_RERANK_MODEL
+        self.enabled = settings.ZHIPU_RERANK_ENABLED and bool(self.api_key)
+        self._client = None
+
+    def _get_client(self):
+        """延迟初始化客户端"""
+        if self._client is None and self.enabled:
+            try:
+                from zhipuai import ZhipuAI
+                self._client = ZhipuAI(api_key=self.api_key)
+                logger.info(f"智谱 Rerank 客户端初始化成功，模型: {self.model}")
+            except ImportError:
+                logger.warning("zhipuai SDK 未安装，请运行: pip install zhipuai")
+                self.enabled = False
+            except Exception as e:
+                logger.error(f"智谱 Rerank 客户端初始化失败: {e}")
+                self.enabled = False
+        return self._client
+
+    async def rerank(
+        self,
+        query: str,
+        documents: List[Dict[str, Any]],
+        top_k: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        使用智谱 API 对文档进行重排序
+
+        Args:
+            query: 查询文本
+            documents: 文档列表，每个文档必须包含 'title' 或 'content' 字段
+            top_k: 返回的文档数量
+
+        Returns:
+            重排序后的文档列表，按相关性降序排列
+        """
+        if not self.enabled:
+            logger.debug("智谱 Rerank 未启用")
+            return []
+
+        if not documents:
+            return []
+
+        try:
+            client = self._get_client()
+            if client is None:
+                return []
+
+            # 构造文档文本列表
+            doc_texts = []
+            for doc in documents:
+                title = doc.get("title", "")
+                content = doc.get("content", "")
+                if title and content:
+                    doc_texts.append(f"{title}\n{content[:500]}")
+                elif content:
+                    doc_texts.append(content[:500])
+                else:
+                    doc_texts.append(title)
+
+            # 调用智谱 Rerank API
+            def _call_rerank():
+                return client.rerank(
+                    model=self.model,
+                    query=query,
+                    documents=doc_texts,
+                    top_n=min(top_k, len(doc_texts))
+                )
+
+            response = await async_wrapper(_call_rerank)()
+
+            # 构建结果列表
+            results = []
+            for result in response.results:
+                idx = result.index
+                if 0 <= idx < len(documents):
+                    reranked_doc = documents[idx].copy()
+                    reranked_doc["rerank_score"] = result.relevance_score
+                    reranked_doc["rerank_source"] = "zhipu"
+                    results.append(reranked_doc)
+
+            logger.info(f"智谱 Rerank 完成，处理 {len(documents)} 个文档，返回 {len(results)} 个")
+            return results
+
+        except Exception as e:
+            logger.error(f"智谱 Rerank 调用失败: {e}")
+            return []
+
+
+class BgeRerankService:
+    """本地 BGE Rerank 服务 - 作为兜底方案"""
 
     def __init__(self):
         self.model_name = settings.RERANK_MODEL
@@ -33,23 +127,23 @@ class RerankService:
             return
 
         if not self.enabled:
-            logger.info("Rerank is disabled, skipping model loading")
+            logger.info("BGE Rerank is disabled, skipping model loading")
             return
 
         try:
             from transformers import AutoTokenizer, AutoModelForSequenceClassification
             import torch
 
-            logger.info(f"Loading rerank model: {self.model_name}")
+            logger.info(f"Loading BGE rerank model: {self.model_name}")
 
             self._tokenizer = AutoTokenizer.from_pretrained(self.model_name)
             self._model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
             self._model.to(self.device)
             self._model.eval()
 
-            logger.info(f"Rerank model loaded successfully on {self.device}")
+            logger.info(f"BGE Rerank model loaded successfully on {self.device}")
         except Exception as e:
-            logger.error(f"Failed to load rerank model: {e}")
+            logger.error(f"Failed to load BGE rerank model: {e}")
             self.enabled = False
 
     async def rerank(
@@ -59,7 +153,7 @@ class RerankService:
         top_k: int = 10
     ) -> List[Dict[str, Any]]:
         """
-        对文档进行重排序
+        使用本地 BGE 模型对文档进行重排序
 
         Args:
             query: 查询文本
@@ -70,7 +164,7 @@ class RerankService:
             重排序后的文档列表，按相关性降序排列
         """
         if not self.enabled:
-            logger.info("Rerank is disabled, returning original documents")
+            logger.info("BGE Rerank is disabled, returning original documents")
             return documents[:top_k]
 
         if not documents:
@@ -81,7 +175,7 @@ class RerankService:
             self._load_model()
 
             if self._model is None:
-                logger.warning("Rerank model not loaded, returning original documents")
+                logger.warning("BGE Rerank model not loaded, returning original documents")
                 return documents[:top_k]
 
             # 构造文档文本（用于 rerank）
@@ -109,13 +203,14 @@ class RerankService:
             for doc, score in scored_docs[:top_k]:
                 result = doc.copy()
                 result["rerank_score"] = float(score)
+                result["rerank_source"] = "bge"
                 results.append(result)
 
-            logger.info(f"Reranked {len(documents)} documents, returning top {len(results)}")
+            logger.info(f"BGE Reranked {len(documents)} documents, returning top {len(results)}")
             return results
 
         except Exception as e:
-            logger.error(f"Failed to rerank documents: {e}")
+            logger.error(f"Failed to rerank documents with BGE: {e}")
             return documents[:top_k]
 
     async def _compute_scores(self, query: str, documents: List[str]) -> List[float]:
@@ -200,21 +295,87 @@ class SimpleRerankService:
         for doc, score in scored_docs[:top_k]:
             result = doc.copy()
             result["rerank_score"] = score
+            result["rerank_source"] = "simple"
             results.append(result)
 
         return results
 
 
+class HybridRerankService:
+    """
+    混合 Rerank 服务
+    优先使用智谱 Rerank，失败时使用本地 BGE Rerank 兜底
+    """
+
+    def __init__(self):
+        self._zhipu_service = ZhipuRerankService()
+        self._bge_service = BgeRerankService()
+        self._simple_service = SimpleRerankService()
+
+    async def rerank(
+        self,
+        query: str,
+        documents: List[Dict[str, Any]],
+        top_k: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        对文档进行重排序
+
+        优先级：
+        1. 智谱 Rerank（如果启用且有 API Key）
+        2. 本地 BGE Rerank（作为兜底）
+        3. 简单规则 Rerank（最终兜底）
+
+        Args:
+            query: 查询文本
+            documents: 文档列表
+            top_k: 返回的文档数量
+
+        Returns:
+            重排序后的文档列表
+        """
+        if not documents:
+            return []
+
+        # 1. 尝试使用智谱 Rerank
+        if self._zhipu_service.enabled:
+            try:
+                results = await self._zhipu_service.rerank(query, documents, top_k)
+                if results:
+                    logger.info("使用智谱 Rerank 成功")
+                    return results
+            except Exception as e:
+                logger.warning(f"智谱 Rerank 失败，切换到兜底方案: {e}")
+
+        # 2. 尝试使用本地 BGE Rerank
+        if self._bge_service.enabled:
+            try:
+                results = await self._bge_service.rerank(query, documents, top_k)
+                if results:
+                    logger.info("使用本地 BGE Rerank 成功")
+                    return results
+            except Exception as e:
+                logger.warning(f"BGE Rerank 失败，切换到简单规则: {e}")
+
+        # 3. 使用简单规则 Rerank（最终兜底）
+        logger.info("使用简单规则 Rerank")
+        return await self._simple_service.rerank(query, documents, top_k)
+
+
+# 兼容旧代码的别名
+RerankService = HybridRerankService
+
+
 # 全局单例
-_rerank_service: Optional[RerankService] = None
+_rerank_service: Optional[HybridRerankService] = None
 _simple_rerank_service: Optional[SimpleRerankService] = None
 
 
-def get_rerank_service() -> RerankService:
-    """获取 Rerank 服务单例"""
+def get_rerank_service() -> HybridRerankService:
+    """获取 Rerank 服务单例（优先智谱，BGE兜底）"""
     global _rerank_service
     if _rerank_service is None:
-        _rerank_service = RerankService()
+        _rerank_service = HybridRerankService()
     return _rerank_service
 
 

@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     RERANK_DEVICE: str = "cpu"  # 或 "cuda" / "mps"
     RERANK_ENABLED: bool = True
 
+    # 智谱 Rerank 配置（优先使用）
+    ZHIPU_API_KEY: str = Field(default="", description="智谱AI API Key")
+    ZHIPU_RERANK_MODEL: str = "glm-rerank"  # 可选: glm-rerank, glm-rerank-pro
+    ZHIPU_RERANK_ENABLED: bool = True  # 是否启用智谱 Rerank
+
     # Elasticsearch 配置
     ES_HOST: str = "localhost"
     ES_PORT: int = 9200
