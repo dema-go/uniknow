@@ -41,12 +41,12 @@
                   <div class="source-tags">
                      <el-tag
                       v-for="source in msg.sources"
-                      :key="source.id"
+                      :key="source.id || source.case_id"
                       class="source-tag"
                       effect="plain"
-                      @click="viewSource(source.id)"
+                      @click="viewSource(source.id || source.case_id)"
                     >
-                      {{ source.title }}
+                      {{ source.title || '未命名案例' }}
                     </el-tag>
                   </div>
                 </div>
@@ -216,9 +216,9 @@ const handleAsk = async (e) => {
               messages.value[assistantMessageIndex].content += parsed.text
               messages.value[assistantMessageIndex].thinking = null
               scrollToBottom()
-            } else if (parsed.sources) {
+            } else if (parsed.type === 'source') {
               // 来源信息
-              messages.value[assistantMessageIndex].sources = parsed.sources
+              messages.value[assistantMessageIndex].sources = parsed.sources || []
               scrollToBottom()
             } else if (parsed.message === 'done' || Object.keys(parsed).length === 0) {
               // 完成
