@@ -2,9 +2,11 @@
   <el-dialog
     v-model="visible"
     title="选择案例模版"
-    width="720px"
+    width="90%"
     :close-on-click-modal="false"
     class="template-dialog"
+    :show-close="true"
+    center
   >
     <!-- 分类标签 -->
     <el-tabs v-model="activeCategory" class="template-tabs">
@@ -92,6 +94,11 @@ const handleSelect = (template) => {
 
 <style lang="scss" scoped>
 .template-dialog {
+  :deep(.el-dialog) {
+    max-width: 720px;
+    width: 90% !important;
+  }
+
   :deep(.el-dialog__header) {
     padding: 20px 24px;
     border-bottom: 1px solid #f3f4f6;
@@ -99,6 +106,16 @@ const handleSelect = (template) => {
 
   :deep(.el-dialog__body) {
     padding: 0 24px 24px;
+  }
+
+  @media (max-width: 768px) {
+    :deep(.el-dialog) {
+      width: 95% !important;
+    }
+
+    :deep(.template-grid) {
+      grid-template-columns: 1fr !important;
+    }
   }
 }
 
