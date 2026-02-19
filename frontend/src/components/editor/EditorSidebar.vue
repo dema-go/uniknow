@@ -38,7 +38,8 @@
 
     <!-- 模版选择弹窗 -->
     <TemplateDialog
-      v-model="showTemplateDialog"
+      :model-value="showTemplateDialog"
+      @update:model-value="showTemplateDialog = $event"
       @select="handleTemplateSelect"
     />
   </div>

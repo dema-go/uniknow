@@ -50,8 +50,19 @@ import { ref, computed } from 'vue'
 import { DocumentCopy } from '@element-plus/icons-vue'
 import { builtinTemplates, templateCategories } from '@/data/templates'
 
-const visible = defineModel({ type: Boolean, default: false })
-const emit = defineEmits(['select'])
+const props = defineProps({
+  modelValue: {
+    type: Boolean,
+    default: false
+  }
+})
+
+const emit = defineEmits(['update:modelValue', 'select'])
+
+const visible = computed({
+  get: () => props.modelValue,
+  set: (value) => emit('update:modelValue', value)
+})
 
 const activeCategory = ref('all')
 const categories = templateCategories
