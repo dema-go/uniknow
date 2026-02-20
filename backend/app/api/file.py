@@ -138,3 +138,72 @@ async def delete_file(
         raise HTTPException(status_code=500, detail="删除文件失败")
 
     return BaseResponse(data={"success": True})
+
+
+# 支持预览的文件类型
+PREVIEWABLE_TEXT_TYPES = {'txt', 'md', 'json', 'xml', 'html', 'css', 'js', 'py', 'java', 'c', 'cpp', 'go', 'rs'}
+
+
+@router.get("/{bucket}/{object_name:path}/preview")
+async def preview_file(
+    bucket: str,
+    object_name: str,
+    current_user: TokenData = Depends(get_current_user),
+):
+    """
+    预览文件
+
+    支持的预览类型：
+    - PDF: 直接返回 PDF 文件
+    - 文本文件 (txt, md, json 等): 返回文本内容
+    - Office 文档: 暂不支持，返回提示信息
+
+    Args:
+        bucket: bucket 名称
+        object_name: 对象名称 (路径格式: tenant_id/uuid.ext)
+    """
+    import urllib.parse
+
+    # URL 解码 object_name
+    object_name = urllib.parse.unquote(object_name)
+
+    # 获取文件扩展名
+    ext = object_name.rsplit('.', 1)[-1].lower() if '.' in object_name else ''
+
+    storage = get_storage_service()
+
+    try:
+        content, content_type = storage.get_file(f"{bucket}/{object_name}")
+    except Exception as e:
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    # PDF 文件直接返回
+    if ext == 'pdf':
+        return Response(
+            content=content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'inline; filename="{object_name.split("/")[-1]}"'
+            }
+        )
+
+    # 文本文件返回文本内容
+    if ext in PREVIEWABLE_TEXT_TYPES:
+        return Response(
+            content=content,
+            media_type="text/plain; charset=utf-8"
+        )
+
+    # Office 文档暂不支持
+    office_types = {'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'}
+    if ext in office_types:
+        raise HTTPException(
+            status_code=400,
+            detail="暂不支持预览 Office 文档，请下载后查看"
+        )
+
+    # 其他类型
+    raise HTTPException(
+        status_code=400,
+        detail=f"暂不支持预览 .{ext} 类型文件，请下载后查看"
+    )

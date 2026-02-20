@@ -53,7 +53,7 @@
       <!-- Main Content -->
       <div class="content-wrapper">
         <el-card class="content-card" shadow="never">
-          <!-- 文档类型：显示文件信息和下载按钮 -->
+          <!-- 文档类型：显示文件信息和下载/预览按钮 -->
           <div v-if="caseData.case_form === 'document'" class="document-section">
             <div class="document-info">
               <el-icon class="file-icon"><Document /></el-icon>
@@ -65,9 +65,14 @@
                 </p>
               </div>
             </div>
-            <el-button type="primary" @click="handleDownload" :loading="downloading">
-              <el-icon><Download /></el-icon> 下载文档
-            </el-button>
+            <div class="document-actions">
+              <el-button type="primary" @click="handlePreview" :loading="previewing" v-if="isPreviewable">
+                <el-icon><View /></el-icon> 预览
+              </el-button>
+              <el-button type="primary" @click="handleDownload" :loading="downloading">
+                <el-icon><Download /></el-icon> 下载文档
+              </el-button>
+            </div>
           </div>
 
           <!-- 文档描述 -->
@@ -94,6 +99,36 @@
            </div>
         </el-card>
       </div>
+
+      <!-- 预览对话框 -->
+      <el-dialog
+        v-model="previewDialogVisible"
+        :title="previewTitle"
+        width="80%"
+        :before-close="closePreview"
+        class="preview-dialog"
+      >
+        <div class="preview-content">
+          <!-- PDF 预览 -->
+          <iframe
+            v-if="previewType === 'pdf'"
+            :src="previewUrl"
+            class="pdf-preview"
+          />
+
+          <!-- 文本预览 -->
+          <pre v-else-if="previewType === 'text'" class="text-preview">{{ previewText }}</pre>
+
+          <!-- 不支持预览 -->
+          <div v-else class="unsupported-preview">
+            <el-icon :size="48"><Warning /></el-icon>
+            <p>{{ previewError }}</p>
+            <el-button type="primary" @click="handleDownload">
+              <el-icon><Download /></el-icon> 下载文件
+            </el-button>
+          </div>
+        </div>
+      </el-dialog>
     </div>
   </div>
 </template>
@@ -102,7 +137,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Document, Download } from '@element-plus/icons-vue'
+import { Document, Download, View, Warning } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import 'github-markdown-css'
 import 'highlight.js/styles/github.css'
@@ -127,6 +162,25 @@ const router = useRouter()
 const caseData = ref(null)
 const liked = ref(false)
 const downloading = ref(false)
+const previewing = ref(false)
+
+// 预览相关状态
+const previewDialogVisible = ref(false)
+const previewUrl = ref('')
+const previewText = ref('')
+const previewType = ref('')
+const previewTitle = ref('')
+const previewError = ref('')
+
+// 支持预览的文件类型
+const previewableExtensions = ['pdf', 'txt', 'md', 'json', 'xml', 'html', 'css', 'js', 'py', 'java', 'c', 'cpp', 'go', 'rs']
+
+// 判断是否支持预览
+const isPreviewable = computed(() => {
+  if (!caseData.value?.file_name) return false
+  const ext = caseData.value.file_name.split('.').pop()?.toLowerCase()
+  return previewableExtensions.includes(ext)
+})
 
 // 计算渲染后的Markdown内容
 const renderedContent = computed(() => {
@@ -229,10 +283,9 @@ const handleDownload = async () => {
 
   downloading.value = true
   try {
-    // 解析 file_path (格式: bucket/object_name)
-    const pathParts = caseData.value.file_path.split('/')
-    const bucket = pathParts[0]
-    const objectName = pathParts.slice(1).join('/')
+    // file_path 格式: tenant_id/uuid.ext，使用固定 bucket
+    const bucket = 'uniknow-documents'
+    const objectName = caseData.value.file_path
 
     const response = await fileApi.download(bucket, objectName)
 
@@ -254,6 +307,68 @@ const handleDownload = async () => {
   } finally {
     downloading.value = false
   }
+}
+
+const handlePreview = async () => {
+  if (!caseData.value.file_path) {
+    ElMessage.error('文件路径不存在')
+    return
+  }
+
+  previewing.value = true
+  previewDialogVisible.value = true
+  previewTitle.value = caseData.value.file_name || '文件预览'
+  previewUrl.value = ''
+  previewText.value = ''
+  previewType.value = ''
+  previewError.value = ''
+
+  try {
+    // file_path 格式: tenant_id/uuid.ext，使用固定 bucket
+    const bucket = 'uniknow-documents'
+    const objectName = caseData.value.file_path
+
+    const ext = caseData.value.file_name.split('.').pop()?.toLowerCase()
+
+    // PDF 预览
+    if (ext === 'pdf') {
+      previewType.value = 'pdf'
+      // 获取 PDF 预览 URL
+      const baseURL = import.meta.env.VITE_API_BASE_URL || ''
+      const token = localStorage.getItem('token')
+      previewUrl.value = `${baseURL}/api/v1/files/${bucket}/${encodeURIComponent(objectName)}/preview${token ? `?token=${token}` : ''}`
+      return
+    }
+
+    // 文本类型预览 - 使用 blob 方式获取
+    if (previewableExtensions.includes(ext)) {
+      previewType.value = 'text'
+      try {
+        const response = await fileApi.preview(bucket, objectName)
+        // 将 blob 转换为文本
+        previewText.value = await response.text()
+      } catch (e) {
+        previewText.value = '无法加载文件内容'
+      }
+      return
+    }
+
+    // 不支持的文件类型
+    previewType.value = 'unsupported'
+    previewError.value = `暂不支持预览 .${ext} 类型文件，请下载后查看`
+  } catch (error) {
+    console.error('Preview error:', error)
+    previewType.value = 'unsupported'
+    previewError.value = error.response?.data?.detail || '预览失败，请下载文件查看'
+  } finally {
+    previewing.value = false
+  }
+}
+
+const closePreview = () => {
+  previewDialogVisible.value = false
+  previewUrl.value = ''
+  previewText.value = ''
 }
 
 onMounted(() => {
@@ -373,6 +488,11 @@ onMounted(() => {
           }
         }
       }
+    }
+
+    .document-actions {
+      display: flex;
+      gap: 12px;
     }
   }
 
@@ -510,6 +630,53 @@ onMounted(() => {
           // styles
         }
       }
+    }
+  }
+}
+
+// 预览对话框样式
+.preview-dialog {
+  .preview-content {
+    height: 70vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .pdf-preview {
+    width: 100%;
+    height: 100%;
+    border: none;
+    border-radius: 8px;
+  }
+
+  .text-preview {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background: #f6f8fa;
+    padding: 16px;
+    border-radius: 8px;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin: 0;
+  }
+
+  .unsupported-preview {
+    text-align: center;
+    color: #6b7280;
+
+    .el-icon {
+      color: #f59e0b;
+      margin-bottom: 16px;
+    }
+
+    p {
+      margin: 0 0 16px 0;
+      font-size: 14px;
     }
   }
 }

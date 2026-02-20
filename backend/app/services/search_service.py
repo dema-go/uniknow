@@ -71,59 +71,15 @@ class SearchService:
         结合 ES 全文检索、向量检索、图谱检索，并使用 Rerank 重排序
         """
         # 并行执行多路检索
-        es_results = []
-        vector_results = []
-        graph_results = []
+        es_results, vector_results, graph_results = await self._parallel_search(
+            query=query,
+            tenant_id=tenant_id,
+            category_id=category_id,
+            case_type=case_type,
+            tags=tags
+        )
 
-        # 1. Elasticsearch 全文检索
-        if self.es_service and settings.ES_ENABLED:
-            try:
-                es_results = await self.es_service.search(
-                    query=query,
-                    tenant_id=tenant_id,
-                    top_k=50,
-                    case_type=case_type,
-                    category_id=category_id,
-                    tags=tags
-                )
-            except Exception as e:
-                logger.warning(f"ES search failed: {e}")
-
-        # 2. Milvus 向量搜索
-        if self.milvus_service and query:
-            try:
-                query_vector = await self.embedding_service.embed_query(query)
-                vector_results = await self.milvus_service.search_similar(
-                    query_vector=query_vector,
-                    tenant_id=tenant_id,
-                    top_k=50,
-                    case_type=case_type,
-                    category_id=category_id
-                )
-            except Exception as e:
-                logger.warning(f"Vector search failed: {e}")
-
-        # 3. Neo4j 图谱检索
-        if self.neo4j_service and settings.NEO4J_ENABLED:
-            try:
-                if tags:
-                    # 如果有标签，通过标签搜索
-                    graph_results = await self.neo4j_service.search_by_tags(
-                        tags=tags,
-                        tenant_id=tenant_id,
-                        top_k=30
-                    )
-                elif query:
-                    # 否则从查询中提取关键词搜索
-                    graph_results = await self.neo4j_service.extract_keywords_and_search(
-                        query=query,
-                        tenant_id=tenant_id,
-                        top_k=30
-                    )
-            except Exception as e:
-                logger.warning(f"Graph search failed: {e}")
-
-        # 4. 合并结果（去重）
+        # 合并结果（去重）
         merged_results = self._merge_results(es_results, vector_results, graph_results)
 
         # 5. 如果所有检索都失败，回退到 MongoDB 关键词搜索
@@ -219,6 +175,121 @@ class SearchService:
             items.append(doc)
 
         return items
+
+    async def _parallel_search(
+        self,
+        query: str,
+        tenant_id: str,
+        category_id: Optional[str] = None,
+        case_type: Optional[str] = None,
+        tags: Optional[List[str]] = None
+    ) -> tuple:
+        """
+        并行执行多路检索（ES、向量、图谱）
+        返回: (es_results, vector_results, graph_results)
+        """
+        # 创建搜索任务
+        es_task = self._es_search(
+            query=query,
+            tenant_id=tenant_id,
+            case_type=case_type,
+            category_id=category_id,
+            tags=tags
+        ) if self.es_service and settings.ES_ENABLED else None
+
+        vector_task = self._vector_search(
+            query=query,
+            tenant_id=tenant_id,
+            case_type=case_type,
+            category_id=category_id
+        ) if self.milvus_service and query else None
+
+        graph_task = self._graph_search(
+            query=query,
+            tenant_id=tenant_id,
+            tags=tags
+        ) if self.neo4j_service and settings.NEO4J_ENABLED else None
+
+        # 并行执行所有搜索任务
+        results = await asyncio.gather(
+            es_task or [], vector_task or [], graph_task or [],
+            return_exceptions=True
+        )
+
+        # 处理结果
+        es_results = results[0] if not isinstance(results[0], Exception) else []
+        vector_results = results[1] if not isinstance(results[1], Exception) else []
+        graph_results = results[2] if not isinstance(results[2], Exception) else []
+
+        return es_results, vector_results, graph_results
+
+    async def _es_search(
+        self,
+        query: str,
+        tenant_id: str,
+        case_type: Optional[str] = None,
+        category_id: Optional[str] = None,
+        tags: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """Elasticsearch 全文检索"""
+        try:
+            return await self.es_service.search(
+                query=query,
+                tenant_id=tenant_id,
+                top_k=50,
+                case_type=case_type,
+                category_id=category_id,
+                tags=tags
+            )
+        except Exception as e:
+            logger.warning(f"ES search failed: {e}")
+            return []
+
+    async def _vector_search(
+        self,
+        query: str,
+        tenant_id: str,
+        case_type: Optional[str] = None,
+        category_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Milvus 向量搜索"""
+        try:
+            query_vector = await self.embedding_service.embed_query(query)
+            return await self.milvus_service.search_similar(
+                query_vector=query_vector,
+                tenant_id=tenant_id,
+                top_k=50,
+                case_type=case_type,
+                category_id=category_id
+            )
+        except Exception as e:
+            logger.warning(f"Vector search failed: {e}")
+            return []
+
+    async def _graph_search(
+        self,
+        query: str,
+        tenant_id: str,
+        tags: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """Neo4j 图谱检索"""
+        try:
+            if tags:
+                return await self.neo4j_service.search_by_tags(
+                    tags=tags,
+                    tenant_id=tenant_id,
+                    top_k=30
+                )
+            elif query:
+                return await self.neo4j_service.extract_keywords_and_search(
+                    query=query,
+                    tenant_id=tenant_id,
+                    top_k=30
+                )
+            return []
+        except Exception as e:
+            logger.warning(f"Graph search failed: {e}")
+            return []
 
     def _merge_results(
         self,

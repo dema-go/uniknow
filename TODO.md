@@ -69,9 +69,18 @@
 - [x] 智能问答中是否可以把使用到的具体案例展示出来，类似于现在大模型问答一样可以展示引用的知识来源
     - **修复**: 前端 sources 解析逻辑错误（从 `parsed.sources` 改为 `parsed.type === 'source'`）
     - **改进**: 当 title 为空时显示 "未命名案例"，支持 case_id 字段
-- [ ] 案例搜索的性能很慢，优化下搜索算法提升性能，先给出优化计划
+- [x] 案例搜索的性能很慢，优化下搜索算法提升性能，先给出优化计划
     - **设计文档**: `design/search-performance-optimization.md`
     - **方案概述**: 并行化检索 + 预计算 Embedding + 异步 Rerank + 缓存
-- [ ] 文档类型案例实现在线预览功能，先给出技术选型和实现方案
+    - **实现**: 使用 `asyncio.gather` 并行执行 ES/向量/图谱搜索
+    - **验证**: 搜索功能正常工作
+    - **修复**: 同步缺失数据到 Milvus 向量数据库（创建 `scripts/sync_to_milvus.py`）
+- [x] 文档类型案例实现在线预览功能，先给出技术选型和实现方案
     - **设计文档**: `design/document-preview.md`
     - **方案概述**: PDF.js + 永中DCS API + 文本直接展示
+    - **实现**:
+        - 后端添加 `/files/{bucket}/{object_name}/preview` 接口
+        - 前端添加预览对话框组件
+        - 支持 PDF 和文本文件 (txt, md, json 等) 预览
+        - Office 文档 (doc, pptx 等) 暂不支持，返回提示信息
+    - **验证**: 后端 API 正常工作

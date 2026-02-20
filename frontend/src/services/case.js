@@ -96,6 +96,13 @@ export const fileApi = {
     })
   },
 
+  // 预览文件
+  preview(bucket, objectName) {
+    return request.get(`/files/${bucket}/${objectName}/preview`, {
+      responseType: 'blob'
+    })
+  },
+
   // 删除文件
   delete(bucket, objectName) {
     return request.delete(`/files/${bucket}/${objectName}`)
